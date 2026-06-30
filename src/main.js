@@ -240,7 +240,7 @@ function tick() {
   // Animate the water and bring the forest to life.
   const elapsed = clock.elapsedTime;
   stream.animate(elapsed);
-  for (const critter of wildlife.critters) critter.update(delta, elapsed);
+  for (const critter of wildlife.critters) critter.update(delta, elapsed, pos);
   fisherman.update(delta, elapsed);
 
   // Start a conversation when the player approaches the fisherman; end it when
