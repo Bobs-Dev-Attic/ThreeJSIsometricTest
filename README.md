@@ -36,6 +36,10 @@ and lets you move around with classic click-to-move controls.
   approach; a loot interface lets you take items (or "Take All") into a player
   inventory you can open any time (🎒 button or the **I** key). Items include
   coins, weapons, food and clothing.
+- 🐎 **Scripted encounter** — cross the bridge and a mounted knight rides up,
+  blocks the way and warns "Halt or I'll attack!". Press on toward him and he
+  couches his lance, charges and runs you through — a death screen with a
+  restart. Retreat (or wait) and he stands down.
 - ☀️ **Atmosphere** — soft shadows, hemisphere + directional lighting, and
   distance fog.
 
@@ -80,6 +84,7 @@ src/npc.js         # fisherman NPC (rod, line, bobber, idle animation)
 src/dialogue.js    # branching dialogue panel (clickable options)
 src/chest.js       # treasure chest with an animated hinged lid
 src/inventory.js   # player inventory + chest loot interface
+src/knight.js      # mounted knight (horse, lance, shield) for the encounter
 src/navigation.js  # A* grid pathfinding (obstacle + stream avoidance)
 src/style.css      # HUD + layout
 vite.config.js     # Vite build config (relative base for static hosting)

@@ -5,6 +5,7 @@ import { createStream } from './stream.js';
 import { createWildlife } from './wildlife.js';
 import { Fisherman } from './npc.js';
 import { Chest } from './chest.js';
+import { Knight } from './knight.js';
 import { createDialogue } from './dialogue.js';
 import { createInventory } from './inventory.js';
 import { NavGrid } from './navigation.js';
@@ -192,6 +193,151 @@ marker.visible = false;
 scene.add(marker);
 
 // ---------------------------------------------------------------------------
+// Scripted encounter: once the player crosses to the far bank, a mounted
+// knight rides up, blocks the way and warns "Halt or I'll attack!". Continue
+// toward him and he charges, lances the player and it's game over.
+// ---------------------------------------------------------------------------
+const knight = new Knight();
+scene.add(knight.group);
+
+const banner = document.createElement('div');
+banner.id = 'knight-banner';
+document.getElementById('app').appendChild(banner);
+
+const deathOverlay = document.createElement('div');
+deathOverlay.id = 'death';
+deathOverlay.innerHTML = `
+  <h1>You Have Been Slain</h1>
+  <p>"Halt or I'll attack," the knight had warned. You rode on regardless.</p>
+  <button id="respawn">Try Again</button>
+`;
+document.getElementById('app').appendChild(deathOverlay);
+deathOverlay.addEventListener('pointerdown', (e) => e.stopPropagation());
+deathOverlay.querySelector('#respawn').addEventListener('click', () => location.reload());
+
+const KNIGHT_NAME = 'Sir Aldric';
+const encounter = { state: 'dormant', timer: 0, stop: { x: 0, z: 0 }, exit: { x: 0, z: 0 } };
+let playerDead = false;
+let deathTimer = 0;
+
+function showBanner(text) {
+  banner.textContent = `⚔  ${KNIGHT_NAME}: "${text}"`;
+  banner.classList.add('show');
+}
+function hideBanner() {
+  banner.classList.remove('show');
+}
+
+// Move the knight toward a target; returns true while still travelling.
+function rideToward(tx, tz, speed, delta) {
+  const dx = tx - knight.x;
+  const dz = tz - knight.z;
+  const d = Math.hypot(dx, dz);
+  if (d < 0.25) return false;
+  const step = Math.min(speed * delta, d);
+  knight.x += (dx / d) * step;
+  knight.z += (dz / d) * step;
+  knight.group.position.x = knight.x;
+  knight.group.position.z = knight.z;
+  knight.group.rotation.y = Math.atan2(dx, dz);
+  return true;
+}
+
+function triggerAttack() {
+  encounter.state = 'attack';
+  hideBanner();
+  moving = false;
+  path = null;
+  marker.visible = false;
+}
+
+function standDown(line) {
+  encounter.state = 'leave';
+  encounter.exit = { x: knight.x, z: -halfSize + 3 };
+  showBanner(line);
+}
+
+function killPlayer() {
+  if (playerDead) return;
+  playerDead = true;
+  moving = false;
+  path = null;
+  marker.visible = false;
+  deathTimer = 0;
+}
+
+function updateEncounter(delta, t) {
+  switch (encounter.state) {
+    case 'dormant': {
+      // Trigger once the player is across the stream onto the north bank.
+      if (!playerDead && pos.z < streamCfg.water.zmin - 2) {
+        // Halt the player so the knight can ride up and stop in front of them.
+        moving = false;
+        path = null;
+        marker.visible = false;
+        encounter.stop = {
+          x: THREE.MathUtils.clamp(pos.x, -halfSize + 6, halfSize - 6),
+          z: Math.max(-halfSize + 6, pos.z - 4.5),
+        };
+        const spawnZ = Math.max(-halfSize + 2, encounter.stop.z - 14);
+        knight.setPosition(encounter.stop.x, spawnZ, 0); // facing +Z (south)
+        knight.group.visible = true;
+        encounter.state = 'approach';
+      }
+      knight.update(delta, t, {});
+      break;
+    }
+    case 'approach': {
+      const riding = rideToward(encounter.stop.x, encounter.stop.z, 12, delta);
+      knight.update(delta, t, { moving: true });
+      if (!riding) {
+        encounter.state = 'warn';
+        encounter.timer = 0;
+        // Halt the player to face the confrontation.
+        moving = false;
+        path = null;
+        marker.visible = false;
+        showBanner('Halt or I’ll attack!');
+      }
+      break;
+    }
+    case 'warn': {
+      // Face the player.
+      knight.group.rotation.y = Math.atan2(pos.x - knight.x, pos.z - knight.z);
+      knight.update(delta, t, {});
+      encounter.timer += delta;
+      // If the player complies (stays put) for a while, the knight relents.
+      if (encounter.timer > 9) standDown('Hmph. On your way, then.');
+      break;
+    }
+    case 'attack': {
+      const dist = Math.hypot(pos.x - knight.x, pos.z - knight.z);
+      if (dist < 1.7) {
+        knight.update(delta, t, { moving: false, charging: true });
+        killPlayer();
+        encounter.state = 'done';
+      } else {
+        rideToward(pos.x, pos.z, 16, delta);
+        knight.update(delta, t, { moving: true, charging: true });
+      }
+      break;
+    }
+    case 'leave': {
+      const riding = rideToward(encounter.exit.x, encounter.exit.z, 12, delta);
+      knight.update(delta, t, { moving: true });
+      if (!riding) {
+        knight.group.visible = false;
+        hideBanner();
+        encounter.state = 'done';
+      }
+      break;
+    }
+    default:
+      knight.update(delta, t, {});
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Click-to-move
 // ---------------------------------------------------------------------------
 const raycaster = new THREE.Raycaster();
@@ -205,6 +351,8 @@ let pathIndex = 0;
 let moving = false;
 
 function moveTo(clientX, clientY) {
+  if (playerDead) return; // no control once slain
+  if (encounter.state === 'approach') return; // brief beat while the knight rides up
   pointer.x = (clientX / window.innerWidth) * 2 - 1;
   pointer.y = -(clientY / window.innerHeight) * 2 + 1;
   raycaster.setFromCamera(pointer, camera);
@@ -214,6 +362,16 @@ function moveTo(clientX, clientY) {
   const lim = halfSize - 1;
   hit.x = THREE.MathUtils.clamp(hit.x, -lim, lim);
   hit.z = THREE.MathUtils.clamp(hit.z, -lim, lim);
+
+  // During the knight's warning: pressing on toward him (northward) provokes
+  // the attack; retreating (or stepping aside) makes him stand down.
+  if (encounter.state === 'warn') {
+    if (hit.z < pos.z - 0.4) {
+      triggerAttack();
+      return;
+    }
+    standDown('A wise retreat, traveler.');
+  }
 
   // Route around obstacles instead of walking straight through them.
   const route = navGrid.findPath({ x: pos.x, z: pos.z }, { x: hit.x, z: hit.z });
@@ -263,8 +421,9 @@ function surfaceHeight(x, z) {
 
 function tick() {
   const delta = Math.min(clock.getDelta(), 0.05);
+  const elapsed = clock.elapsedTime;
 
-  if (moving && path) {
+  if (!playerDead && moving && path) {
     // Advance past any waypoints we've already reached (the first one is the
     // start point, so this also drops it on the first frame).
     let wp = path[pathIndex];
@@ -293,50 +452,60 @@ function tick() {
     }
   }
 
-  character.update(delta, moving); // sets pos.y to the bob offset
-  // Ease the character onto/off the bridge deck.
-  baseY += (surfaceHeight(pos.x, pos.z) - baseY) * Math.min(1, delta * 7);
-  pos.y += baseY;
+  if (!playerDead) {
+    character.update(delta, moving); // sets pos.y to the bob offset
+    // Ease the character onto/off the bridge deck.
+    baseY += (surfaceHeight(pos.x, pos.z) - baseY) * Math.min(1, delta * 7);
+    pos.y += baseY;
+  } else {
+    // Slain: topple over and, after a beat, reveal the death screen.
+    deathTimer += delta;
+    character.group.rotation.z += (Math.PI / 2 - character.group.rotation.z) * Math.min(1, delta * 4);
+    pos.y = baseY + 0.1;
+    if (deathTimer > 1.1) deathOverlay.classList.add('show');
+  }
 
   // Animate the water and bring the forest to life.
-  const elapsed = clock.elapsedTime;
   stream.animate(elapsed);
   for (const critter of wildlife.critters) critter.update(delta, elapsed, pos);
   fisherman.update(delta, elapsed);
   chest.update(delta);
+  updateEncounter(delta, elapsed);
 
-  // Conversation with the fisherman. Approaching opens the branching dialogue;
-  // ending it (via "Farewell") sets a dismiss flag so it doesn't immediately
-  // reopen — that flag clears once the player walks away.
-  const distToNpc = Math.hypot(pos.x - fisherman.x, pos.z - fisherman.z);
-  if (talking && !dialogue.active) {
-    // Player closed the dialogue by choosing an end option.
-    talking = false;
-    npcDismissed = true;
-  }
-  if (distToNpc < 3.4) {
-    if (!talking && !npcDismissed) {
-      talking = true;
-      dialogue.open('Old Angler', FISHERMAN_TREE);
-    }
-  } else {
-    npcDismissed = false;
-    if (talking) {
+  if (!playerDead) {
+    // Conversation with the fisherman. Approaching opens the branching dialogue;
+    // ending it (via "Farewell") sets a dismiss flag so it doesn't immediately
+    // reopen — that flag clears once the player walks away.
+    const distToNpc = Math.hypot(pos.x - fisherman.x, pos.z - fisherman.z);
+    if (talking && !dialogue.active) {
+      // Player closed the dialogue by choosing an end option.
       talking = false;
-      dialogue.close();
+      npcDismissed = true;
     }
-  }
+    if (distToNpc < 3.4) {
+      if (!talking && !npcDismissed) {
+        talking = true;
+        dialogue.open('Old Angler', FISHERMAN_TREE);
+      }
+    } else {
+      npcDismissed = false;
+      if (talking) {
+        talking = false;
+        dialogue.close();
+      }
+    }
 
-  // Chest: open (and show the loot interface) on approach, close on leaving.
-  const distToChest = Math.hypot(pos.x - chest.x, pos.z - chest.z);
-  if (distToChest < 2.8) {
-    if (!inventory.chestVisible) {
-      chest.open();
-      inventory.openChest(chestContents);
+    // Chest: open (and show the loot interface) on approach, close on leaving.
+    const distToChest = Math.hypot(pos.x - chest.x, pos.z - chest.z);
+    if (distToChest < 2.8) {
+      if (!inventory.chestVisible) {
+        chest.open();
+        inventory.openChest(chestContents);
+      }
+    } else if (inventory.chestVisible) {
+      chest.close();
+      inventory.closeChest();
     }
-  } else if (inventory.chestVisible) {
-    chest.close();
-    inventory.closeChest();
   }
 
   // Camera follows the character, preserving the isometric offset.
