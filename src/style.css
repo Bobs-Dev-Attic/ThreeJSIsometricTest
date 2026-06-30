@@ -93,11 +93,196 @@ body {
   line-height: 1.45;
 }
 
-.dlg-hint {
-  margin-top: 10px;
+.dlg-options {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.dlg-option {
+  text-align: left;
+  font: inherit;
+  font-size: 14px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.05s ease;
+}
+
+.dlg-option:hover {
+  background: rgba(255, 224, 102, 0.16);
+  border-color: rgba(255, 224, 102, 0.5);
+}
+
+.dlg-option:active {
+  transform: translateY(1px);
+}
+
+/* ---- Loot / inventory panels ------------------------------------------- */
+.panel {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -46%);
+  width: min(720px, 92vw);
+  padding: 18px 20px 14px;
+  background: rgba(12, 22, 16, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 14px;
+  color: var(--ink);
+  box-shadow: 0 14px 50px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.22s ease, transform 0.22s ease;
+  z-index: 20;
+}
+
+.panel.show {
+  opacity: 1;
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+}
+
+#inventory {
+  width: min(420px, 90vw);
+}
+
+.loot-cols {
+  display: flex;
+  gap: 18px;
+}
+
+.loot-col {
+  flex: 1;
+  min-width: 0;
+}
+
+.loot-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.loot-head h3 {
+  font-size: 16px;
+  color: #ffe066;
+  letter-spacing: 0.4px;
+}
+
+.btn {
+  font: inherit;
+  font-size: 12px;
+  color: #0b1410;
+  background: #ffe066;
+  border: none;
+  border-radius: 7px;
+  padding: 5px 10px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.btn:hover {
+  background: #ffd633;
+}
+
+.slots {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  gap: 8px;
+  min-height: 96px;
+  align-content: start;
+  max-height: 46vh;
+  overflow-y: auto;
+}
+
+.slot {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 9px;
+  padding: 8px 6px;
+  text-align: center;
+  position: relative;
+}
+
+.slot.clickable {
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, transform 0.05s ease;
+}
+
+.slot.clickable:hover {
+  background: rgba(255, 224, 102, 0.16);
+  border-color: rgba(255, 224, 102, 0.5);
+}
+
+.slot.clickable:active {
+  transform: translateY(1px);
+}
+
+.slot-icon {
+  font-size: 30px;
+  line-height: 1.1;
+}
+
+.slot-name {
+  font-size: 11px;
+  opacity: 0.85;
+  margin-top: 3px;
+}
+
+.slot-qty {
+  position: absolute;
+  right: 5px;
+  bottom: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #ffe066;
+  text-shadow: 0 1px 2px #000;
+}
+
+.type-weapon .slot-icon { filter: drop-shadow(0 0 3px rgba(180, 200, 255, 0.5)); }
+.type-coin .slot-icon { filter: drop-shadow(0 0 3px rgba(255, 215, 80, 0.6)); }
+
+.slots-empty {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.45;
+  font-style: italic;
+  font-size: 13px;
+}
+
+.panel-hint {
+  margin-top: 12px;
   font-size: 12px;
   opacity: 0.55;
-  text-align: right;
+  text-align: center;
+}
+
+#inv-button {
+  position: fixed;
+  right: 16px;
+  top: 16px;
+  z-index: 15;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  background: rgba(12, 22, 16, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 9px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+#inv-button:hover {
+  background: rgba(255, 224, 102, 0.18);
+  border-color: rgba(255, 224, 102, 0.5);
 }
 
 #loading {

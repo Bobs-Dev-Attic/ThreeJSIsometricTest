@@ -28,9 +28,14 @@ and lets you move around with classic click-to-move controls.
   skittish: when the player gets close they **flee** — routing away with the
   same pathfinding, at a faster gait (the deer bounds, the squirrel darts) —
   and settle back into wandering once you give them space.
-- 🎣 **NPC + dialogue** — a fisherman stands on the bridge with an animated rod,
-  line and bobber; walk up to him and he strikes up a conversation (a dialogue
-  panel you can click through), which closes when you wander off.
+- 🎣 **NPC + branching dialogue** — a fisherman stands on the bridge with an
+  animated rod, line and bobber; walk up to him and he strikes up a conversation
+  with clickable answer/question options (a small dialogue tree). He even points
+  you toward the chest.
+- 🧰 **Chest, loot & inventory** — an animated treasure chest opens as you
+  approach; a loot interface lets you take items (or "Take All") into a player
+  inventory you can open any time (🎒 button or the **I** key). Items include
+  coins, weapons, food and clothing.
 - ☀️ **Atmosphere** — soft shadows, hemisphere + directional lighting, and
   distance fog.
 
@@ -72,7 +77,9 @@ src/forest.js      # procedural world (ground, trees, rocks, shrubs)
 src/stream.js      # animated stream + wooden bridge
 src/wildlife.js    # deer, squirrels and birds with natural animation
 src/npc.js         # fisherman NPC (rod, line, bobber, idle animation)
-src/dialogue.js    # proximity-triggered dialogue panel
+src/dialogue.js    # branching dialogue panel (clickable options)
+src/chest.js       # treasure chest with an animated hinged lid
+src/inventory.js   # player inventory + chest loot interface
 src/navigation.js  # A* grid pathfinding (obstacle + stream avoidance)
 src/style.css      # HUD + layout
 vite.config.js     # Vite build config (relative base for static hosting)
