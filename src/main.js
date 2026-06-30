@@ -13,6 +13,15 @@ import { NavGrid } from './navigation.js';
 const canvas = document.getElementById('scene');
 const loading = document.getElementById('loading');
 
+// Build version stamp (injected at build time) so you can confirm the live
+// build is the latest: semantic version · git commit · build timestamp.
+const BUILD_DATE = __BUILD_TIME__.replace('T', ' ').slice(0, 16);
+const VERSION_TEXT = `v${__APP_VERSION__} · ${__GIT_HASH__} · built ${BUILD_DATE} UTC`;
+const loadVersionEl = document.getElementById('load-version');
+const versionBadgeEl = document.getElementById('version-badge');
+if (loadVersionEl) loadVersionEl.textContent = VERSION_TEXT;
+if (versionBadgeEl) versionBadgeEl.textContent = VERSION_TEXT;
+
 // ---------------------------------------------------------------------------
 // Renderer
 // ---------------------------------------------------------------------------
