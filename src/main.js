@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import { Character } from './character.js';
 import { createForest } from './forest.js';
+import { createStream } from './stream.js';
+import { createWildlife } from './wildlife.js';
+import { NavGrid } from './navigation.js';
 
 const canvas = document.getElementById('scene');
 const loading = document.getElementById('loading');
@@ -61,8 +64,38 @@ scene.add(sun.target);
 // ---------------------------------------------------------------------------
 // World + character
 // ---------------------------------------------------------------------------
-const { group: forest, halfSize } = createForest();
+const HALF = 40;
+
+// Stream with a bridge crossing the middle of the forest.
+const stream = createStream({ halfSize: HALF, zCenter: -6, halfWidth: 3, bridgeXCenter: 0, bridgeHalfWidth: 2.5 });
+scene.add(stream.group);
+const streamCfg = stream.config;
+
+// Forest, kept clear of the stream and the bridge approaches.
+const { group: forest, halfSize, obstacles } = createForest({
+  halfSize: HALF,
+  stream: {
+    zCenter: streamCfg.zCenter,
+    halfWidth: streamCfg.halfWidth,
+    bridgeXCenter: streamCfg.bridgeXCenter,
+    bridgeHalfWidth: streamCfg.bridgeHalfWidth,
+  },
+});
 scene.add(forest);
+
+// Navigation grid the character uses to route around trees and rocks, and to
+// keep off the water (the bridge is the only way across the stream).
+const navGrid = new NavGrid(obstacles, {
+  halfSize,
+  cellSize: 0.5,
+  agentRadius: 0.5,
+  gridMargin: 0.2,
+  water: streamCfg.water,
+});
+
+// Wildlife: wandering deer & squirrels (sharing the navigation grid) and birds.
+const wildlife = createWildlife(navGrid, { halfSize, water: streamCfg.water });
+scene.add(wildlife.group);
 
 const character = new Character();
 scene.add(character.group);
@@ -83,10 +116,12 @@ scene.add(marker);
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
 const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-const target = new THREE.Vector3();
 const hit = new THREE.Vector3();
-let moving = false;
 const SPEED = 6; // world units per second
+
+let path = null; // array of {x,z} waypoints from the navigation grid
+let pathIndex = 0;
+let moving = false;
 
 function moveTo(clientX, clientY) {
   pointer.x = (clientX / window.innerWidth) * 2 - 1;
@@ -99,9 +134,16 @@ function moveTo(clientX, clientY) {
   hit.x = THREE.MathUtils.clamp(hit.x, -lim, lim);
   hit.z = THREE.MathUtils.clamp(hit.z, -lim, lim);
 
-  target.copy(hit);
+  // Route around obstacles instead of walking straight through them.
+  const route = navGrid.findPath({ x: pos.x, z: pos.z }, { x: hit.x, z: hit.z });
+  if (!route || route.length === 0) return;
+
+  path = route;
+  pathIndex = 0;
   moving = true;
-  marker.position.set(target.x, 0.05, target.z);
+
+  const end = route[route.length - 1];
+  marker.position.set(end.x, 0.05, end.z);
   marker.visible = true;
 }
 
@@ -127,17 +169,38 @@ onResize();
 // ---------------------------------------------------------------------------
 const clock = new THREE.Clock();
 const pos = character.group.position; // y is driven by the bob in Character
+let baseY = 0; // ground height under the character (rises on the bridge)
+
+// Height of the walkable surface at (x,z): the bridge deck while crossing the
+// stream, otherwise the ground.
+function surfaceHeight(x, z) {
+  const onDeckX = Math.abs(x - streamCfg.bridgeXCenter) <= streamCfg.bridgeHalfWidth;
+  const overSpan =
+    z > streamCfg.zCenter - streamCfg.halfWidth - 1 && z < streamCfg.zCenter + streamCfg.halfWidth + 1;
+  return onDeckX && overSpan ? streamCfg.deckSurface : 0;
+}
 
 function tick() {
   const delta = Math.min(clock.getDelta(), 0.05);
 
-  if (moving) {
-    const dx = target.x - pos.x;
-    const dz = target.z - pos.z;
-    const dist = Math.hypot(dx, dz);
+  if (moving && path) {
+    // Advance past any waypoints we've already reached (the first one is the
+    // start point, so this also drops it on the first frame).
+    let wp = path[pathIndex];
+    let dx = wp.x - pos.x;
+    let dz = wp.z - pos.z;
+    let dist = Math.hypot(dx, dz);
+    while (dist < 0.15 && pathIndex < path.length - 1) {
+      pathIndex++;
+      wp = path[pathIndex];
+      dx = wp.x - pos.x;
+      dz = wp.z - pos.z;
+      dist = Math.hypot(dx, dz);
+    }
 
-    if (dist < 0.1) {
+    if (dist < 0.15 && pathIndex >= path.length - 1) {
       moving = false;
+      path = null;
       marker.visible = false;
     } else {
       const step = Math.min(SPEED * delta, dist);
@@ -149,7 +212,15 @@ function tick() {
     }
   }
 
-  character.update(delta, moving);
+  character.update(delta, moving); // sets pos.y to the bob offset
+  // Ease the character onto/off the bridge deck.
+  baseY += (surfaceHeight(pos.x, pos.z) - baseY) * Math.min(1, delta * 7);
+  pos.y += baseY;
+
+  // Animate the water and bring the forest to life.
+  const elapsed = clock.elapsedTime;
+  stream.animate(elapsed);
+  for (const critter of wildlife.critters) critter.update(delta, elapsed);
 
   // Camera follows the character, preserving the isometric offset.
   camera.position.set(pos.x + camOffset.x, camOffset.y, pos.z + camOffset.z);

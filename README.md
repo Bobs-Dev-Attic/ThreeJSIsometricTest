@@ -18,6 +18,13 @@ and lets you move around with classic click-to-move controls.
   PRNG so the layout is stable between reloads.
 - 🖱️ **Click / tap to move** — raycast onto the ground and walk the character to
   the marked spot; it turns to face the direction of travel.
+- 🧭 **Obstacle-avoiding navigation** — grid-based A* pathfinding routes the
+  character around trees and rocks instead of through them.
+- 🌊 **Stream & bridge** — a rippling stream crosses the forest; the water is
+  impassable, so the character must route to the wooden bridge to cross.
+- 🦌 **Wildlife** — wandering deer and scurrying squirrels (which share the
+  navigation grid, so they also avoid trees and water) plus birds circling
+  overhead with flapping wings, to bring the scene to life.
 - ☀️ **Atmosphere** — soft shadows, hemisphere + directional lighting, and
   distance fog.
 
@@ -52,13 +59,16 @@ vercel --prod # production deployment
 ## Project structure
 
 ```
-index.html        # canvas + HUD, loads the module entry point
-src/main.js       # renderer, scene, isometric camera, lighting, game loop
-src/character.js  # procedural animated humanoid
-src/forest.js     # procedural world (ground, trees, rocks, shrubs)
-src/style.css     # HUD + layout
-vite.config.js    # Vite build config (relative base for static hosting)
-vercel.json       # Vercel framework/build settings
+index.html         # canvas + HUD, loads the module entry point
+src/main.js        # renderer, scene, isometric camera, lighting, game loop
+src/character.js   # procedural animated humanoid
+src/forest.js      # procedural world (ground, trees, rocks, shrubs)
+src/stream.js      # animated stream + wooden bridge
+src/wildlife.js    # deer, squirrels and birds with natural animation
+src/navigation.js  # A* grid pathfinding (obstacle + stream avoidance)
+src/style.css      # HUD + layout
+vite.config.js     # Vite build config (relative base for static hosting)
+vercel.json        # Vercel framework/build settings
 ```
 
 ## Where to go next
