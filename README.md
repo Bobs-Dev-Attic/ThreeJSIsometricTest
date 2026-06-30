@@ -46,6 +46,20 @@ and lets you move around with classic click-to-move controls.
 Everything is self-contained (no asset downloads), so it builds and deploys
 reliably as a static site.
 
+## Version stamp
+
+The loading screen (and a subtle badge in the bottom-left corner) shows a build
+stamp so you can confirm you're running the latest version:
+
+```
+v<package.json version> · <git commit> · built <UTC timestamp>
+```
+
+The version, commit hash and build time are injected at build time
+(`vite.config.js`). The semantic version is bumped in `package.json` with each
+change, and the git commit/timestamp update on every build — so if the stamp
+matches the latest commit, you know the deployment is current.
+
 ## Getting started
 
 ```bash
