@@ -15,11 +15,15 @@ function mulberry32(seed) {
  * Builds the forest world: a ground plane scattered with low-poly trees,
  * rocks and shrubs. The area immediately around the spawn point is kept clear.
  *
- * @returns {{ group: THREE.Group, halfSize: number }}
+ * Each blocking item is also recorded in `obstacles` (world-space x/z plus a
+ * collision radius) so the navigation grid can route the character around them.
+ *
+ * @returns {{ group: THREE.Group, halfSize: number, obstacles: Array<{x:number,z:number,radius:number}> }}
  */
 export function createForest({ halfSize = 40, treeCount = 110, seed = 1337 } = {}) {
   const rand = mulberry32(seed);
   const group = new THREE.Group();
+  const obstacles = [];
 
   // Ground
   const ground = new THREE.Mesh(
@@ -77,6 +81,9 @@ export function createForest({ halfSize = 40, treeCount = 110, seed = 1337 } = {
     tree.scale.setScalar(scale);
     tree.rotation.y = rand() * Math.PI * 2;
     group.add(tree);
+    // Conifer foliage flares well past the trunk, so block roughly the lower
+    // canopy footprint rather than just the trunk.
+    obstacles.push({ x, z, radius: 0.9 * scale });
   }
 
   // A handful of rocks for variety.
@@ -90,6 +97,7 @@ export function createForest({ halfSize = 40, treeCount = 110, seed = 1337 } = {
     rock.castShadow = true;
     rock.receiveShadow = true;
     group.add(rock);
+    obstacles.push({ x, z, radius: 0.6 * s });
   }
 
   // Low shrubs (flattened spheres) sprinkled around.
@@ -102,7 +110,8 @@ export function createForest({ halfSize = 40, treeCount = 110, seed = 1337 } = {
     shrub.scale.set(s, s * 0.7, s);
     shrub.castShadow = true;
     group.add(shrub);
+    obstacles.push({ x, z, radius: 0.6 * s });
   }
 
-  return { group, halfSize };
+  return { group, halfSize, obstacles };
 }
