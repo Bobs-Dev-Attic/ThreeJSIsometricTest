@@ -25,6 +25,9 @@ and lets you move around with classic click-to-move controls.
 - 🦌 **Wildlife** — wandering deer and scurrying squirrels (which share the
   navigation grid, so they also avoid trees and water) plus birds circling
   overhead with flapping wings, to bring the scene to life.
+- 🎣 **NPC + dialogue** — a fisherman stands on the bridge with an animated rod,
+  line and bobber; walk up to him and he strikes up a conversation (a dialogue
+  panel you can click through), which closes when you wander off.
 - ☀️ **Atmosphere** — soft shadows, hemisphere + directional lighting, and
   distance fog.
 
@@ -65,6 +68,8 @@ src/character.js   # procedural animated humanoid
 src/forest.js      # procedural world (ground, trees, rocks, shrubs)
 src/stream.js      # animated stream + wooden bridge
 src/wildlife.js    # deer, squirrels and birds with natural animation
+src/npc.js         # fisherman NPC (rod, line, bobber, idle animation)
+src/dialogue.js    # proximity-triggered dialogue panel
 src/navigation.js  # A* grid pathfinding (obstacle + stream avoidance)
 src/style.css      # HUD + layout
 vite.config.js     # Vite build config (relative base for static hosting)

@@ -3,6 +3,8 @@ import { Character } from './character.js';
 import { createForest } from './forest.js';
 import { createStream } from './stream.js';
 import { createWildlife } from './wildlife.js';
+import { Fisherman } from './npc.js';
+import { createDialogue } from './dialogue.js';
 import { NavGrid } from './navigation.js';
 
 const canvas = document.getElementById('scene');
@@ -83,6 +85,11 @@ const { group: forest, halfSize, obstacles } = createForest({
 });
 scene.add(forest);
 
+// Fisherman NPC, standing on the bridge near the railing. Register him as an
+// obstacle so the player routes around him (and can still cross the bridge).
+const FISHERMAN_POS = { x: 1.6, z: -6 };
+obstacles.push({ x: FISHERMAN_POS.x, z: FISHERMAN_POS.z, radius: 0.45 });
+
 // Navigation grid the character uses to route around trees and rocks, and to
 // keep off the water (the bridge is the only way across the stream).
 const navGrid = new NavGrid(obstacles, {
@@ -96,6 +103,19 @@ const navGrid = new NavGrid(obstacles, {
 // Wildlife: wandering deer & squirrels (sharing the navigation grid) and birds.
 const wildlife = createWildlife(navGrid, { halfSize, water: streamCfg.water });
 scene.add(wildlife.group);
+
+const fisherman = new Fisherman({ deckSurface: streamCfg.deckSurface });
+fisherman.setPosition(FISHERMAN_POS.x, FISHERMAN_POS.z, Math.PI / 2);
+scene.add(fisherman.group);
+
+const dialogue = createDialogue();
+const FISHERMAN_LINES = [
+  'Ah, a traveler! Come to watch an old angler at work?',
+  "The trout here are crafty... I've been waiting since dawn.",
+  "Mind the bridge — it's the only dry way across this stream.",
+  "Stay a while. The forest grows peaceful once you stop to listen.",
+];
+let talking = false;
 
 const character = new Character();
 scene.add(character.group);
@@ -221,6 +241,19 @@ function tick() {
   const elapsed = clock.elapsedTime;
   stream.animate(elapsed);
   for (const critter of wildlife.critters) critter.update(delta, elapsed);
+  fisherman.update(delta, elapsed);
+
+  // Start a conversation when the player approaches the fisherman; end it when
+  // they wander off (with hysteresis so it doesn't flicker at the boundary).
+  const distToNpc = Math.hypot(pos.x - fisherman.x, pos.z - fisherman.z);
+  if (!talking && distToNpc < 3.4) {
+    talking = true;
+    dialogue.open('Old Angler', FISHERMAN_LINES);
+  } else if (talking && distToNpc > 4.6) {
+    talking = false;
+    dialogue.close();
+  }
+  dialogue.tick(delta);
 
   // Camera follows the character, preserving the isometric offset.
   camera.position.set(pos.x + camOffset.x, camOffset.y, pos.z + camOffset.z);
