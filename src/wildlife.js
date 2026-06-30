@@ -35,6 +35,14 @@ class GroundAnimal {
     this.reach = opts.reach ?? Infinity;
     this.baseY = opts.baseY ?? 0;
 
+    // Flight response to the player.
+    this.spook = opts.spook ?? 6; // start fleeing within this distance
+    this.calm = opts.calm ?? 10; // stop fleeing once this far away
+    this.fleeSpeed = opts.fleeSpeed ?? this.speed * 2.5;
+    this.fleeDist = opts.fleeDist ?? 12; // how far to bolt each time
+    this.fleeing = false;
+    this.repick = 0;
+
     this.group = new THREE.Group();
     this.angle = rand() * Math.PI * 2;
     this.path = null;
@@ -42,6 +50,23 @@ class GroundAnimal {
     this.pause = rand() * opts.maxPause;
 
     this._place();
+  }
+
+  // Bolt to a walkable spot away from the player, routing with the same
+  // navigation grid (so the animal still avoids trees, rocks and the stream).
+  _fleeFrom(player) {
+    const away = Math.atan2(this.z - player.z, this.x - player.x);
+    for (const da of [0, 0.5, -0.5, 1.0, -1.0, 1.6, -1.6, 2.4, -2.4]) {
+      const a = away + da;
+      const tx = clamp(this.x + Math.cos(a) * this.fleeDist, this.region.xmin, this.region.xmax);
+      const tz = clamp(this.z + Math.sin(a) * this.fleeDist, this.region.zmin, this.region.zmax);
+      const path = this.nav.findPath({ x: this.x, z: this.z }, { x: tx, z: tz });
+      if (path && path.length > 1) {
+        this.path = path;
+        this.pathIndex = 1;
+        return;
+      }
+    }
   }
 
   _randPoint() {
@@ -80,10 +105,29 @@ class GroundAnimal {
     this.pause = this.minPause + this.rand() * (this.maxPause - this.minPause);
   }
 
-  update(delta, t) {
+  update(delta, t, player) {
     let moving = false;
 
-    if (this.pause > 0) {
+    // Threat assessment: flee when the player is near.
+    if (player) {
+      const pd = Math.hypot(this.x - player.x, this.z - player.z);
+      if (pd < this.spook) {
+        this.repick -= delta;
+        // Re-target away from the player periodically, or once the current
+        // bolt is spent, so the animal keeps its distance as it's chased.
+        if (!this.fleeing || this.repick <= 0 || !this.path) {
+          this._fleeFrom(player);
+          this.repick = 0.7;
+        }
+        this.fleeing = true;
+      } else if (this.fleeing && pd > this.calm) {
+        this.fleeing = false;
+      }
+    }
+
+    const speed = this.fleeing ? this.fleeSpeed : this.speed;
+
+    if (this.pause > 0 && !this.fleeing) {
       this.pause -= delta;
     } else if (this.path) {
       let wp = this.path[this.pathIndex];
@@ -99,15 +143,16 @@ class GroundAnimal {
       }
       if (d < 0.1 && this.pathIndex >= this.path.length - 1) {
         this.path = null;
-        this.pause = this.minPause + this.rand() * (this.maxPause - this.minPause);
+        if (!this.fleeing) this.pause = this.minPause + this.rand() * (this.maxPause - this.minPause);
       } else {
-        const step = Math.min(this.speed * delta, d);
+        const step = Math.min(speed * delta, d);
         this.x += (dx / d) * step;
         this.z += (dz / d) * step;
-        this.angle = lerpAngle(this.angle, Math.atan2(dx, dz), 0.15);
+        // Snap toward the heading faster while fleeing (a panicked turn).
+        this.angle = lerpAngle(this.angle, Math.atan2(dx, dz), this.fleeing ? 0.3 : 0.15);
         moving = true;
       }
-    } else {
+    } else if (!this.fleeing) {
       this._pickTarget();
     }
 
@@ -115,7 +160,7 @@ class GroundAnimal {
     this.group.position.z = this.z;
     this.group.rotation.y = this.angle;
 
-    if (moving) this.animateMove(t);
+    if (moving) this.animateMove(t, this.fleeing);
     else this.animateIdle(t, delta);
     return moving;
   }
@@ -127,7 +172,16 @@ class GroundAnimal {
 
 export class Deer extends GroundAnimal {
   constructor(nav, region, rand) {
-    super(nav, region, rand, { speed: 2.2, minPause: 2, maxPause: 6, baseY: 0 });
+    super(nav, region, rand, {
+      speed: 2.2,
+      minPause: 2,
+      maxPause: 6,
+      baseY: 0,
+      spook: 7,
+      calm: 12,
+      fleeSpeed: 7.5,
+      fleeDist: 15,
+    });
     this._build(rand);
     this.grazeTimer = rand() * 4;
     this.graze = 0;
@@ -181,13 +235,19 @@ export class Deer extends GroundAnimal {
     });
   }
 
-  animateMove(t) {
-    const s = Math.sin(t * 8) * 0.5;
+  animateMove(t, fleeing) {
+    // Faster, longer strides when bolting; a small bound (vertical hop) too.
+    const freq = fleeing ? 15 : 8;
+    const amp = fleeing ? 0.7 : 0.5;
+    const s = Math.sin(t * freq) * amp;
     this.legs[0].rotation.x = s;
     this.legs[3].rotation.x = s; // diagonal pairs
     this.legs[1].rotation.x = -s;
     this.legs[2].rotation.x = -s;
-    this.neckPivot.rotation.x += (0 - this.neckPivot.rotation.x) * 0.1;
+    this.group.position.y = this.baseY + (fleeing ? Math.abs(Math.sin(t * freq * 0.5)) * 0.14 : 0);
+    // Head up and alert while fleeing.
+    const neckTarget = fleeing ? -0.3 : 0;
+    this.neckPivot.rotation.x += (neckTarget - this.neckPivot.rotation.x) * 0.1;
     this.graze += (0 - this.graze) * 0.1;
   }
 
@@ -205,7 +265,17 @@ export class Deer extends GroundAnimal {
 
 export class Squirrel extends GroundAnimal {
   constructor(nav, region, rand) {
-    super(nav, region, rand, { speed: 4.5, minPause: 0.5, maxPause: 2.2, reach: 7, baseY: 0 });
+    super(nav, region, rand, {
+      speed: 4.5,
+      minPause: 0.5,
+      maxPause: 2.2,
+      reach: 7,
+      baseY: 0,
+      spook: 6.5,
+      calm: 10,
+      fleeSpeed: 9.5,
+      fleeDist: 11,
+    });
     this._build();
   }
 
@@ -244,10 +314,12 @@ export class Squirrel extends GroundAnimal {
     });
   }
 
-  animateMove(t) {
-    // Quick scampering hops + a flicking tail.
-    this.group.position.y = this.baseY + Math.abs(Math.sin(t * 18)) * 0.16;
-    this.tail.rotation.x = -0.3 + Math.sin(t * 20) * 0.25;
+  animateMove(t, fleeing) {
+    // Quick scampering hops + a flicking tail; even faster when bolting.
+    const freq = fleeing ? 26 : 18;
+    const amp = fleeing ? 0.2 : 0.16;
+    this.group.position.y = this.baseY + Math.abs(Math.sin(t * freq)) * amp;
+    this.tail.rotation.x = -0.3 + Math.sin(t * (fleeing ? 28 : 20)) * 0.25;
   }
 
   animateIdle(t) {

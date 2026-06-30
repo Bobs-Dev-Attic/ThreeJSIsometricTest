@@ -23,8 +23,11 @@ and lets you move around with classic click-to-move controls.
 - 🌊 **Stream & bridge** — a rippling stream crosses the forest; the water is
   impassable, so the character must route to the wooden bridge to cross.
 - 🦌 **Wildlife** — wandering deer and scurrying squirrels (which share the
-  navigation grid, so they also avoid trees and water) plus birds circling
-  overhead with flapping wings, to bring the scene to life.
+  player's navigation grid, so they avoid trees, rocks and the stream) plus
+  birds circling overhead with flapping wings. The deer and squirrels are
+  skittish: when the player gets close they **flee** — routing away with the
+  same pathfinding, at a faster gait (the deer bounds, the squirrel darts) —
+  and settle back into wandering once you give them space.
 - 🎣 **NPC + dialogue** — a fisherman stands on the bridge with an animated rod,
   line and bobber; walk up to him and he strikes up a conversation (a dialogue
   panel you can click through), which closes when you wander off.
