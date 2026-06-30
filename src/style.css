@@ -54,6 +54,52 @@ body {
   opacity: 0.82;
 }
 
+#dialogue {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  transform: translate(-50%, 16px);
+  width: min(640px, 90vw);
+  padding: 16px 20px 14px;
+  background: rgba(12, 22, 16, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  color: var(--ink);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(3px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  cursor: pointer;
+  user-select: none;
+}
+
+#dialogue.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  pointer-events: auto;
+}
+
+.dlg-name {
+  font-weight: 700;
+  font-size: 16px;
+  color: #ffe066;
+  margin-bottom: 6px;
+  letter-spacing: 0.3px;
+}
+
+.dlg-text {
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.dlg-hint {
+  margin-top: 10px;
+  font-size: 12px;
+  opacity: 0.55;
+  text-align: right;
+}
+
 #loading {
   position: fixed;
   inset: 0;
