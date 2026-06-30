@@ -20,7 +20,7 @@ function mulberry32(seed) {
  *
  * @returns {{ group: THREE.Group, halfSize: number, obstacles: Array<{x:number,z:number,radius:number}> }}
  */
-export function createForest({ halfSize = 40, treeCount = 110, seed = 1337 } = {}) {
+export function createForest({ halfSize = 40, treeCount = 110, seed = 1337, stream = null } = {}) {
   const rand = mulberry32(seed);
   const group = new THREE.Group();
   const obstacles = [];
@@ -47,12 +47,30 @@ export function createForest({ halfSize = 40, treeCount = 110, seed = 1337 } = {
 
   const clearRadius = 6; // keep the spawn area walkable
 
+  // Don't drop anything into the stream, nor across the bridge approaches.
+  const inStream = (x, z) => {
+    if (!stream) return false;
+    const { zCenter, halfWidth, bridgeXCenter, bridgeHalfWidth } = stream;
+    // Anywhere over the water (plus a small bank margin) is off-limits.
+    if (z > zCenter - halfWidth - 1.5 && z < zCenter + halfWidth + 1.5) return true;
+    // Keep the bridge approach lanes on both banks clear so it stays reachable.
+    if (
+      x > bridgeXCenter - bridgeHalfWidth - 1.5 &&
+      x < bridgeXCenter + bridgeHalfWidth + 1.5 &&
+      z > zCenter - halfWidth - 5 &&
+      z < zCenter + halfWidth + 5
+    ) {
+      return true;
+    }
+    return false;
+  };
+
   const placeAway = () => {
     let x, z;
     do {
       x = (rand() * 2 - 1) * halfSize;
       z = (rand() * 2 - 1) * halfSize;
-    } while (Math.hypot(x, z) < clearRadius);
+    } while (Math.hypot(x, z) < clearRadius || inStream(x, z));
     return [x, z];
   };
 

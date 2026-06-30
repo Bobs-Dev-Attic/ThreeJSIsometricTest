@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { Character } from './character.js';
 import { createForest } from './forest.js';
+import { createStream } from './stream.js';
+import { createWildlife } from './wildlife.js';
 import { NavGrid } from './navigation.js';
 
 const canvas = document.getElementById('scene');
@@ -62,11 +64,38 @@ scene.add(sun.target);
 // ---------------------------------------------------------------------------
 // World + character
 // ---------------------------------------------------------------------------
-const { group: forest, halfSize, obstacles } = createForest();
+const HALF = 40;
+
+// Stream with a bridge crossing the middle of the forest.
+const stream = createStream({ halfSize: HALF, zCenter: -6, halfWidth: 3, bridgeXCenter: 0, bridgeHalfWidth: 2.5 });
+scene.add(stream.group);
+const streamCfg = stream.config;
+
+// Forest, kept clear of the stream and the bridge approaches.
+const { group: forest, halfSize, obstacles } = createForest({
+  halfSize: HALF,
+  stream: {
+    zCenter: streamCfg.zCenter,
+    halfWidth: streamCfg.halfWidth,
+    bridgeXCenter: streamCfg.bridgeXCenter,
+    bridgeHalfWidth: streamCfg.bridgeHalfWidth,
+  },
+});
 scene.add(forest);
 
-// Navigation grid the character uses to route around trees, rocks and shrubs.
-const navGrid = new NavGrid(obstacles, { halfSize, cellSize: 0.5, agentRadius: 0.5, gridMargin: 0.2 });
+// Navigation grid the character uses to route around trees and rocks, and to
+// keep off the water (the bridge is the only way across the stream).
+const navGrid = new NavGrid(obstacles, {
+  halfSize,
+  cellSize: 0.5,
+  agentRadius: 0.5,
+  gridMargin: 0.2,
+  water: streamCfg.water,
+});
+
+// Wildlife: wandering deer & squirrels (sharing the navigation grid) and birds.
+const wildlife = createWildlife(navGrid, { halfSize, water: streamCfg.water });
+scene.add(wildlife.group);
 
 const character = new Character();
 scene.add(character.group);
@@ -140,6 +169,16 @@ onResize();
 // ---------------------------------------------------------------------------
 const clock = new THREE.Clock();
 const pos = character.group.position; // y is driven by the bob in Character
+let baseY = 0; // ground height under the character (rises on the bridge)
+
+// Height of the walkable surface at (x,z): the bridge deck while crossing the
+// stream, otherwise the ground.
+function surfaceHeight(x, z) {
+  const onDeckX = Math.abs(x - streamCfg.bridgeXCenter) <= streamCfg.bridgeHalfWidth;
+  const overSpan =
+    z > streamCfg.zCenter - streamCfg.halfWidth - 1 && z < streamCfg.zCenter + streamCfg.halfWidth + 1;
+  return onDeckX && overSpan ? streamCfg.deckSurface : 0;
+}
 
 function tick() {
   const delta = Math.min(clock.getDelta(), 0.05);
@@ -173,7 +212,15 @@ function tick() {
     }
   }
 
-  character.update(delta, moving);
+  character.update(delta, moving); // sets pos.y to the bob offset
+  // Ease the character onto/off the bridge deck.
+  baseY += (surfaceHeight(pos.x, pos.z) - baseY) * Math.min(1, delta * 7);
+  pos.y += baseY;
+
+  // Animate the water and bring the forest to life.
+  const elapsed = clock.elapsedTime;
+  stream.animate(elapsed);
+  for (const critter of wildlife.critters) critter.update(delta, elapsed);
 
   // Camera follows the character, preserving the isometric offset.
   camera.position.set(pos.x + camOffset.x, camOffset.y, pos.z + camOffset.z);

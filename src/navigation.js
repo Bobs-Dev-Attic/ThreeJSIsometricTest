@@ -60,12 +60,25 @@ export class NavGrid {
    * @param {number} opts.cellSize  size of each grid cell in world units
    * @param {number} opts.agentRadius  half-width of the character
    */
-  constructor(obstacles, { halfSize = 40, cellSize = 0.5, agentRadius = 0.5, gridMargin = 0.2 } = {}) {
+  constructor(obstacles, { halfSize = 40, cellSize = 0.5, agentRadius = 0.5, gridMargin = 0.2, water = null } = {}) {
     this.halfSize = halfSize;
     this.cellSize = cellSize;
     this.agentRadius = agentRadius;
     this.cols = Math.ceil((halfSize * 2) / cellSize);
     this.blocked = new Uint8Array(this.cols * this.cols);
+
+    // The stream is an impassable band on Z, except a bridge corridor on X.
+    // Boundaries are baked with the agent radius: the water band is grown
+    // outward (keep the body off the bank) and the bridge corridor shrunk
+    // inward (keep the body on the deck).
+    this.water = water
+      ? {
+          zmin: water.zmin - agentRadius,
+          zmax: water.zmax + agentRadius,
+          bxmin: water.bridgeXmin + agentRadius,
+          bxmax: water.bridgeXmax - agentRadius,
+        }
+      : null;
 
     // Obstacles inflated by the agent radius — the true no-go discs for the
     // character's centre. Used for exact line-of-sight (not just the grid).
@@ -92,6 +105,27 @@ export class NavGrid {
         }
       }
     }
+
+    // Block the stream (everywhere but the bridge corridor).
+    if (this.water) {
+      for (let cz = 0; cz < this.cols; cz++) {
+        const wz = -halfSize + (cz + 0.5) * cellSize;
+        for (let cx = 0; cx < this.cols; cx++) {
+          const wx = -halfSize + (cx + 0.5) * cellSize;
+          if (this.inBlockedWater(wx, wz)) this.blocked[cz * this.cols + cx] = 1;
+        }
+      }
+    }
+  }
+
+  // True when a point is over the stream but not safely on the bridge — i.e.
+  // somewhere the character is not allowed to stand.
+  inBlockedWater(x, z) {
+    const w = this.water;
+    if (!w) return false;
+    if (z < w.zmin || z > w.zmax) return false; // not over the stream
+    if (x >= w.bxmin && x <= w.bxmax) return false; // safely on the bridge
+    return true;
   }
 
   inBounds(cx, cz) {
@@ -147,6 +181,30 @@ export class NavGrid {
       const ddx = px - o.x;
       const ddz = pz - o.z;
       if (ddx * ddx + ddz * ddz < o.r * o.r) return false;
+    }
+
+    // Reject segments that pass over the stream off the bridge. Exact test:
+    // find the part of the segment whose z is inside the water band, then
+    // require its x to stay within the bridge corridor for that whole part.
+    // (x is linear in t, so checking the band-entry/exit endpoints suffices.)
+    const w = this.water;
+    if (w) {
+      let tEnter, tExit;
+      if (dz === 0) {
+        if (az < w.zmin || az > w.zmax) return true; // segment never over the band
+        tEnter = 0;
+        tExit = 1;
+      } else {
+        const t1 = (w.zmin - az) / dz;
+        const t2 = (w.zmax - az) / dz;
+        tEnter = Math.max(0, Math.min(t1, t2));
+        tExit = Math.min(1, Math.max(t1, t2));
+      }
+      if (tEnter <= tExit) {
+        const xA = ax + dx * tEnter;
+        const xB = ax + dx * tExit;
+        if (xA < w.bxmin || xA > w.bxmax || xB < w.bxmin || xB > w.bxmax) return false;
+      }
     }
     return true;
   }
