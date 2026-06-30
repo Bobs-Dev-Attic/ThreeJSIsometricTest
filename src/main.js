@@ -4,7 +4,9 @@ import { createForest } from './forest.js';
 import { createStream } from './stream.js';
 import { createWildlife } from './wildlife.js';
 import { Fisherman } from './npc.js';
+import { Chest } from './chest.js';
 import { createDialogue } from './dialogue.js';
+import { createInventory } from './inventory.js';
 import { NavGrid } from './navigation.js';
 
 const canvas = document.getElementById('scene');
@@ -90,6 +92,11 @@ scene.add(forest);
 const FISHERMAN_POS = { x: 1.6, z: -6 };
 obstacles.push({ x: FISHERMAN_POS.x, z: FISHERMAN_POS.z, radius: 0.45 });
 
+// Treasure chest in the clearing near the spawn (kept clear of trees), also an
+// obstacle so the player walks up to it rather than through it.
+const CHEST_POS = { x: -5, z: 2.5 };
+obstacles.push({ x: CHEST_POS.x, z: CHEST_POS.z, radius: 0.8 });
+
 // Navigation grid the character uses to route around trees and rocks, and to
 // keep off the water (the bridge is the only way across the stream).
 const navGrid = new NavGrid(obstacles, {
@@ -108,14 +115,68 @@ const fisherman = new Fisherman({ deckSurface: streamCfg.deckSurface });
 fisherman.setPosition(FISHERMAN_POS.x, FISHERMAN_POS.z, Math.PI / 2);
 scene.add(fisherman.group);
 
-const dialogue = createDialogue();
-const FISHERMAN_LINES = [
-  'Ah, a traveler! Come to watch an old angler at work?',
-  "The trout here are crafty... I've been waiting since dawn.",
-  "Mind the bridge — it's the only dry way across this stream.",
-  "Stay a while. The forest grows peaceful once you stop to listen.",
+const chest = new Chest();
+chest.setPosition(CHEST_POS.x, CHEST_POS.z, 0.6);
+scene.add(chest.group);
+
+const inventory = createInventory();
+
+// Contents of the chest (taken items are removed from this array).
+const chestContents = [
+  { id: 'coins', name: 'Gold Coins', type: 'coin', icon: '🪙', qty: 25 },
+  { id: 'sword', name: 'Iron Sword', type: 'weapon', icon: '⚔️', qty: 1 },
+  { id: 'bow', name: 'Short Bow', type: 'weapon', icon: '🏹', qty: 1 },
+  { id: 'apple', name: 'Red Apple', type: 'food', icon: '🍎', qty: 3 },
+  { id: 'bread', name: 'Loaf of Bread', type: 'food', icon: '🍞', qty: 2 },
+  { id: 'cloak', name: 'Wool Cloak', type: 'clothing', icon: '🧥', qty: 1 },
+  { id: 'boots', name: 'Leather Boots', type: 'clothing', icon: '🥾', qty: 1 },
+  { id: 'hat', name: 'Feathered Hat', type: 'clothing', icon: '🎩', qty: 1 },
 ];
+
+// Toggle the inventory with the "I" key.
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'i' || e.key === 'I') inventory.toggleInventory();
+});
+
+const dialogue = createDialogue();
+// Branching conversation: the player chooses answers / questions.
+const FISHERMAN_TREE = {
+  start: {
+    text: "Ah, a traveler! Don't see many out here. What brings you to my bridge?",
+    options: [
+      { label: 'Catching anything good?', next: 'fish' },
+      { label: 'What is this place?', next: 'place' },
+      { label: 'Got any advice for me?', next: 'advice' },
+      { label: 'Just passing through. Farewell.', next: null },
+    ],
+  },
+  fish: {
+    text: "Trout, mostly — when they're biting. This stream's fed me for thirty years.",
+    options: [
+      { label: 'Thirty years out here?', next: 'place' },
+      { label: 'Any advice, then?', next: 'advice' },
+      { label: "I'll leave you to it. Farewell.", next: null },
+    ],
+  },
+  place: {
+    text: 'Greenhollow Forest. Peaceful, if you respect it. This bridge is the only dry crossing for miles.',
+    options: [
+      { label: 'Good to know. Any advice?', next: 'advice' },
+      { label: '(Back)', next: 'start' },
+      { label: 'Thank you. Farewell.', next: null },
+    ],
+  },
+  advice: {
+    text: "Aye — there's an old chest in the clearing back yonder. Finders keepers, I always say. Go help yourself.",
+    options: [
+      { label: 'A chest? My thanks!', next: null },
+      { label: 'Tell me about this place first.', next: 'place' },
+      { label: '(Back)', next: 'start' },
+    ],
+  },
+};
 let talking = false;
+let npcDismissed = false;
 
 const character = new Character();
 scene.add(character.group);
@@ -242,18 +303,41 @@ function tick() {
   stream.animate(elapsed);
   for (const critter of wildlife.critters) critter.update(delta, elapsed, pos);
   fisherman.update(delta, elapsed);
+  chest.update(delta);
 
-  // Start a conversation when the player approaches the fisherman; end it when
-  // they wander off (with hysteresis so it doesn't flicker at the boundary).
+  // Conversation with the fisherman. Approaching opens the branching dialogue;
+  // ending it (via "Farewell") sets a dismiss flag so it doesn't immediately
+  // reopen — that flag clears once the player walks away.
   const distToNpc = Math.hypot(pos.x - fisherman.x, pos.z - fisherman.z);
-  if (!talking && distToNpc < 3.4) {
-    talking = true;
-    dialogue.open('Old Angler', FISHERMAN_LINES);
-  } else if (talking && distToNpc > 4.6) {
+  if (talking && !dialogue.active) {
+    // Player closed the dialogue by choosing an end option.
     talking = false;
-    dialogue.close();
+    npcDismissed = true;
   }
-  dialogue.tick(delta);
+  if (distToNpc < 3.4) {
+    if (!talking && !npcDismissed) {
+      talking = true;
+      dialogue.open('Old Angler', FISHERMAN_TREE);
+    }
+  } else {
+    npcDismissed = false;
+    if (talking) {
+      talking = false;
+      dialogue.close();
+    }
+  }
+
+  // Chest: open (and show the loot interface) on approach, close on leaving.
+  const distToChest = Math.hypot(pos.x - chest.x, pos.z - chest.z);
+  if (distToChest < 2.8) {
+    if (!inventory.chestVisible) {
+      chest.open();
+      inventory.openChest(chestContents);
+    }
+  } else if (inventory.chestVisible) {
+    chest.close();
+    inventory.closeChest();
+  }
 
   // Camera follows the character, preserving the isometric offset.
   camera.position.set(pos.x + camOffset.x, camOffset.y, pos.z + camOffset.z);
