@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Character } from './character.js';
 import { createForest } from './forest.js';
 import { createStream } from './stream.js';
-import { createWildlife } from './wildlife.js';
+import { createWildlife, Dog } from './wildlife.js';
 import { Fisherman } from './npc.js';
 import { Chest } from './chest.js';
 import { Knight } from './knight.js';
@@ -120,6 +120,12 @@ const navGrid = new NavGrid(obstacles, {
 // Wildlife: wandering deer & squirrels (sharing the navigation grid) and birds.
 const wildlife = createWildlife(navGrid, { halfSize, water: streamCfg.water });
 scene.add(wildlife.group);
+
+// Companion dog: follows the player and roams/explores nearby. It receives the
+// player's position through the shared critter update loop below.
+const dog = new Dog(navGrid);
+scene.add(dog.group);
+wildlife.critters.push(dog);
 
 const fisherman = new Fisherman({ deckSurface: streamCfg.deckSurface });
 fisherman.setPosition(FISHERMAN_POS.x, FISHERMAN_POS.z, Math.PI / 2);

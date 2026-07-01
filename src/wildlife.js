@@ -165,6 +165,32 @@ class GroundAnimal {
     return moving;
   }
 
+  // Move along the current path at `speed`; returns false (clearing the path)
+  // once the end is reached. Shared by subclasses that drive their own state.
+  _advance(delta, speed) {
+    if (!this.path) return false;
+    let wp = this.path[this.pathIndex];
+    let dx = wp.x - this.x;
+    let dz = wp.z - this.z;
+    let d = Math.hypot(dx, dz);
+    while (d < 0.1 && this.pathIndex < this.path.length - 1) {
+      this.pathIndex++;
+      wp = this.path[this.pathIndex];
+      dx = wp.x - this.x;
+      dz = wp.z - this.z;
+      d = Math.hypot(dx, dz);
+    }
+    if (d < 0.1 && this.pathIndex >= this.path.length - 1) {
+      this.path = null;
+      return false;
+    }
+    const step = Math.min(speed * delta, d);
+    this.x += (dx / d) * step;
+    this.z += (dz / d) * step;
+    this.angle = lerpAngle(this.angle, Math.atan2(dx, dz), 0.25);
+    return true;
+  }
+
   // overridden by subclasses
   animateMove() {}
   animateIdle() {}
@@ -325,6 +351,165 @@ export class Squirrel extends GroundAnimal {
   animateIdle(t) {
     this.group.position.y = this.baseY;
     this.tail.rotation.x = -0.4 + Math.sin(t * 4) * 0.12;
+  }
+}
+
+/**
+ * A companion dog. It shares the player's navigation grid (so it avoids trees,
+ * rocks and the stream, crossing on the bridge), and mixes two behaviours:
+ *  - FOLLOW: when the player gets too far, it trots back to their side.
+ *  - ROAM: otherwise it wanders and explores near the player, pausing to sniff,
+ *    with a happily wagging tail.
+ *
+ * update(delta, t, player) — `player` is the player's {x,z} position.
+ */
+export class Dog extends GroundAnimal {
+  constructor(nav, rand = Math.random) {
+    super(nav, { xmin: 1, xmax: 3, zmin: 0, zmax: 2 }, rand, {
+      speed: 3,
+      minPause: 0.4,
+      maxPause: 2,
+      baseY: 0,
+      spook: 0, // a loyal dog never flees the player
+    });
+    this.trotSpeed = 6.6; // a touch faster than the player so it can catch up
+    this.walkSpeed = 3.0;
+    this.catchUp = 8; // beyond this, hurry back
+    this.roamRadius = 6.5; // explore within this of the player
+    this.followRepick = 0;
+    this._build();
+  }
+
+  _build() {
+    const fur = new THREE.MeshStandardMaterial({ color: 0xb07a41, roughness: 0.85 });
+    const dark = new THREE.MeshStandardMaterial({ color: 0x6f4a24, roughness: 0.9 });
+    const belly = new THREE.MeshStandardMaterial({ color: 0xe0c69a, roughness: 0.85 });
+
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.3, 0.62), fur);
+    body.position.y = 0.46;
+    this.group.add(body);
+    const chest = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.2, 0.16), belly);
+    chest.position.set(0, 0.42, 0.28);
+    this.group.add(chest);
+
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.26, 0.28), fur);
+    head.position.set(0, 0.6, 0.34);
+    this.group.add(head);
+    const snout = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.12, 0.16), dark);
+    snout.position.set(0, 0.55, 0.5);
+    this.group.add(snout);
+    for (const sx of [-1, 1]) {
+      const ear = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.14, 0.05), dark);
+      ear.position.set(sx * 0.11, 0.72, 0.3);
+      ear.rotation.z = sx * 0.2;
+      this.group.add(ear);
+    }
+
+    this.legs = [];
+    const legPos = [
+      [-0.1, 0.22], [0.1, 0.22], [-0.1, -0.22], [0.1, -0.22],
+    ];
+    for (const [lx, lz] of legPos) {
+      const pivot = new THREE.Group();
+      pivot.position.set(lx, 0.34, lz);
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.36, 0.09), dark);
+      leg.position.y = -0.18;
+      pivot.add(leg);
+      this.group.add(pivot);
+      this.legs.push(pivot);
+    }
+
+    // Tail on a pivot at the back so it can wag side to side.
+    this.tail = new THREE.Group();
+    this.tail.position.set(0, 0.55, -0.3);
+    const tailMesh = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.32), fur);
+    tailMesh.position.z = -0.14;
+    tailMesh.rotation.x = -0.7; // held up
+    this.tail.add(tailMesh);
+    this.group.add(this.tail);
+
+    this.group.traverse((o) => {
+      if (o.isMesh) o.castShadow = true;
+    });
+  }
+
+  _pathTo(tx, tz, spread) {
+    const ang = this.rand() * Math.PI * 2;
+    const r = spread * (0.4 + this.rand() * 0.6);
+    const p = this.nav.findPath(
+      { x: this.x, z: this.z },
+      { x: tx + Math.cos(ang) * r, z: tz + Math.sin(ang) * r }
+    );
+    if (p && p.length > 1) {
+      this.path = p;
+      this.pathIndex = 1;
+    }
+  }
+
+  _roamNear(player) {
+    for (let k = 0; k < 6; k++) {
+      const ang = this.rand() * Math.PI * 2;
+      const r = this.roamRadius * (0.3 + this.rand() * 0.7);
+      const p = this.nav.findPath(
+        { x: this.x, z: this.z },
+        { x: player.x + Math.cos(ang) * r, z: player.z + Math.sin(ang) * r }
+      );
+      if (p && p.length > 1) {
+        this.path = p;
+        this.pathIndex = 1;
+        return;
+      }
+    }
+    this.pause = 0.5 + this.rand() * 1.5;
+  }
+
+  update(delta, t, player) {
+    const pd = player ? Math.hypot(this.x - player.x, this.z - player.z) : 0;
+    let moving = false;
+    let running = false;
+
+    if (player && pd > this.catchUp) {
+      // Trot back to the player, re-aiming as they move.
+      this.pause = 0;
+      this.followRepick -= delta;
+      if (!this.path || this.followRepick <= 0) {
+        this._pathTo(player.x, player.z, 1.8);
+        this.followRepick = 0.4;
+      }
+      moving = this._advance(delta, this.trotSpeed);
+      running = true;
+    } else if (this.pause > 0) {
+      this.pause -= delta; // sniffing / resting
+    } else if (this.path) {
+      moving = this._advance(delta, this.walkSpeed);
+      if (!moving) this.pause = 0.5 + this.rand() * 2.0;
+    } else if (player) {
+      this._roamNear(player);
+    }
+
+    this.group.position.x = this.x;
+    this.group.position.z = this.z;
+    this.group.rotation.y = this.angle;
+
+    if (moving) this.animateMove(t, running);
+    else this.animateIdle(t, delta);
+  }
+
+  animateMove(t, running) {
+    const freq = running ? 16 : 10;
+    const s = Math.sin(t * freq) * 0.6;
+    this.legs[0].rotation.x = s;
+    this.legs[3].rotation.x = s;
+    this.legs[1].rotation.x = -s;
+    this.legs[2].rotation.x = -s;
+    this.group.position.y = this.baseY + Math.abs(Math.sin(t * freq)) * (running ? 0.06 : 0.03);
+    this.tail.rotation.y = Math.sin(t * (running ? 20 : 13)) * 0.5;
+  }
+
+  animateIdle(t) {
+    for (const leg of this.legs) leg.rotation.x += (0 - leg.rotation.x) * 0.15;
+    this.group.position.y = this.baseY;
+    this.tail.rotation.y = Math.sin(t * 9) * 0.45; // happy wag
   }
 }
 

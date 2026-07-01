@@ -36,6 +36,10 @@ and lets you move around with classic click-to-move controls.
   approach; a loot interface lets you take items (or "Take All") into a player
   inventory you can open any time (🎒 button or the **I** key). Items include
   coins, weapons, food and clothing.
+- 🐕 **Companion dog** — a loyal dog follows the player (trotting to catch up
+  when it falls behind) and otherwise roams and explores nearby, tail wagging.
+  It uses the same navigation grid, so it rounds obstacles and crosses the
+  bridge to stay with you.
 - 🐎 **Scripted encounter** — cross the bridge and a mounted knight rides up,
   blocks the way and warns "Halt or I'll attack!". Press on toward him and he
   couches his lance, charges and runs you through — a death screen with a
@@ -93,7 +97,7 @@ src/main.js        # renderer, scene, isometric camera, lighting, game loop
 src/character.js   # procedural animated humanoid
 src/forest.js      # procedural world (ground, trees, rocks, shrubs)
 src/stream.js      # animated stream + wooden bridge
-src/wildlife.js    # deer, squirrels and birds with natural animation
+src/wildlife.js    # deer, squirrels, birds and the companion dog
 src/npc.js         # fisherman NPC (rod, line, bobber, idle animation)
 src/dialogue.js    # branching dialogue panel (clickable options)
 src/chest.js       # treasure chest with an animated hinged lid
