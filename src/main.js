@@ -6,10 +6,13 @@ import { createWildlife, Dog } from './wildlife.js';
 import { Fisherman } from './npc.js';
 import { Chest } from './chest.js';
 import { createCabin } from './cabin.js';
+import { createCave, createForestCaveMouth } from './cave.js';
 import { Knight } from './knight.js';
+import { Bear } from './bear.js';
 import { createDialogue } from './dialogue.js';
 import { createInventory } from './inventory.js';
-import { defaultChestLoot } from './items.js';
+import { createCombat } from './combat.js';
+import { defaultChestLoot, makeItem } from './items.js';
 import { NavGrid } from './navigation.js';
 
 const canvas = document.getElementById('scene');
@@ -80,7 +83,7 @@ scene.add(sun.target);
 // ---------------------------------------------------------------------------
 // World + character
 // ---------------------------------------------------------------------------
-const HALF = 40;
+const HALF = 55; // expanded forest
 
 // Stream with a bridge crossing the middle of the forest.
 const stream = createStream({ halfSize: HALF, zCenter: -6, halfWidth: 3, bridgeXCenter: 0, bridgeHalfWidth: 2.5 });
@@ -91,21 +94,26 @@ const streamCfg = stream.config;
 const cabin = createCabin({ cx: 14, cz: 5, hw: 3, hd: 2.6 });
 scene.add(cabin.group);
 
-// Forest, kept clear of the stream, the bridge approaches and the cabin.
+// A cave mouth in the woods; walking into it takes the player to the cave board.
+const caveMouth = createForestCaveMouth({ x: -22, z: 18 });
+scene.add(caveMouth.group);
+
+// Forest, kept clear of the stream, the bridge approaches, the cabin and cave.
 const { group: forest, halfSize, obstacles } = createForest({
   halfSize: HALF,
+  treeCount: 220,
   stream: {
     zCenter: streamCfg.zCenter,
     halfWidth: streamCfg.halfWidth,
     bridgeXCenter: streamCfg.bridgeXCenter,
     bridgeHalfWidth: streamCfg.bridgeHalfWidth,
   },
-  keepClear: [cabin.footprint, cabin.doorClear],
+  keepClear: [cabin.footprint, cabin.doorClear, caveMouth.footprint],
 });
 scene.add(forest);
 
-// Cabin walls block the player (the doorway is left open in the nav grid).
-obstacles.push(...cabin.wallObstacles);
+// Cabin walls + cave-mouth boulders block the player (doorways left open).
+obstacles.push(...cabin.wallObstacles, ...caveMouth.obstacles);
 
 // Fisherman NPC, standing on the bridge near the railing. Register him as an
 // obstacle so the player routes around him (and can still cross the bridge).
@@ -159,6 +167,45 @@ const chestContents = defaultChestLoot();
 window.addEventListener('keydown', (e) => {
   if (e.key === 'i' || e.key === 'I') inventory.toggleInventory();
 });
+
+// Food the player can pick up inside the cabin (eating restores health).
+const pickups = [];
+function addFoodPickup(mesh, item, x, y, z) {
+  mesh.position.set(x, y, z);
+  scene.add(mesh);
+  pickups.push({ mesh, item, x, z, taken: false });
+}
+const appleMesh = new THREE.Mesh(new THREE.SphereGeometry(0.14, 10, 8), new THREE.MeshStandardMaterial({ color: 0xcc2b2b, roughness: 0.6 }));
+addFoodPickup(appleMesh, makeItem('apple', { qty: 2 }), 14.2, 1.02, 4.7);
+const breadMesh = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.16, 0.2), new THREE.MeshStandardMaterial({ color: 0xc8a15a, roughness: 0.8 }));
+addFoodPickup(breadMesh, makeItem('bread', { qty: 2 }), 14.9, 1.0, 5.2);
+const potionMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, 0.3, 8), new THREE.MeshStandardMaterial({ color: 0x3aa0d0, emissive: 0x0a3550, roughness: 0.4 }));
+addFoodPickup(potionMesh, makeItem('potion', { qty: 1 }), 12.6, 0.2, 3.4);
+
+// ---------------------------------------------------------------------------
+// Cave board (its own scene) with a bear at the far end, plus turn-based combat.
+// ---------------------------------------------------------------------------
+const caveScene = new THREE.Scene();
+caveScene.background = new THREE.Color(0x0c0c16);
+caveScene.fog = new THREE.Fog(0x0c0c16, 40, 95);
+caveScene.add(new THREE.HemisphereLight(0x8c8cb0, 0x24222c, 1.05));
+const caveSun = new THREE.DirectionalLight(0xfff0d6, 0.9);
+caveSun.position.set(12, 24, 10);
+caveScene.add(caveSun);
+// Warm torch glow that follows the player.
+const caveLight = new THREE.PointLight(0xffb066, 40, 40, 1.4);
+caveLight.position.set(0, 6, 0);
+caveScene.add(caveLight);
+
+const cave = createCave();
+caveScene.add(cave.group);
+const caveNav = new NavGrid(cave.obstacles, { halfSize: 22, cellSize: 0.5, agentRadius: 0.5, gridMargin: 0.2 });
+
+const bear = new Bear();
+bear.setPosition(cave.bearPos.x, cave.bearPos.z, 0); // faces +Z (toward the player)
+caveScene.add(bear.group);
+
+const combat = createCombat({ inventory });
 
 const dialogue = createDialogue();
 // Branching conversation: the player chooses answers / questions.
@@ -226,17 +273,19 @@ const deathOverlay = document.createElement('div');
 deathOverlay.id = 'death';
 deathOverlay.innerHTML = `
   <h1>You Have Been Slain</h1>
-  <p>"Halt or I'll attack," the knight had warned. You rode on regardless.</p>
+  <p class="death-msg"></p>
   <button id="respawn">Try Again</button>
 `;
 document.getElementById('app').appendChild(deathOverlay);
 deathOverlay.addEventListener('pointerdown', (e) => e.stopPropagation());
 deathOverlay.querySelector('#respawn').addEventListener('click', () => location.reload());
+const deathMsgEl = deathOverlay.querySelector('.death-msg');
 
 const KNIGHT_NAME = 'Sir Aldric';
 const encounter = { state: 'dormant', timer: 0, stop: { x: 0, z: 0 }, exit: { x: 0, z: 0 } };
 let playerDead = false;
 let deathTimer = 0;
+let deathCause = 'knight';
 
 function showBanner(text) {
   banner.textContent = `⚔  ${KNIGHT_NAME}: "${text}"`;
@@ -275,9 +324,14 @@ function standDown(line) {
   showBanner(line);
 }
 
-function killPlayer() {
+function killPlayer(cause = 'knight') {
   if (playerDead) return;
   playerDead = true;
+  deathCause = cause;
+  deathMsgEl.textContent =
+    cause === 'bear'
+      ? 'The cave bear overpowered you. Perhaps a keener blade next time.'
+      : '"Halt or I\'ll attack," the knight had warned. You rode on regardless.';
   moving = false;
   path = null;
   marker.visible = false;
@@ -369,21 +423,21 @@ let pathIndex = 0;
 let moving = false;
 
 function moveTo(clientX, clientY) {
-  if (playerDead) return; // no control once slain
-  if (encounter.state === 'approach') return; // brief beat while the knight rides up
+  if (playerDead || inCombat) return; // no control once slain or mid-fight
+  if (area === 'forest' && encounter.state === 'approach') return; // knight riding up
   pointer.x = (clientX / window.innerWidth) * 2 - 1;
   pointer.y = -(clientY / window.innerHeight) * 2 + 1;
   raycaster.setFromCamera(pointer, camera);
   if (!raycaster.ray.intersectPlane(groundPlane, hit)) return;
 
-  // Clamp inside the world bounds.
-  const lim = halfSize - 1;
+  // Clamp inside the active board's bounds.
+  const lim = activeNav.halfSize - 1;
   hit.x = THREE.MathUtils.clamp(hit.x, -lim, lim);
   hit.z = THREE.MathUtils.clamp(hit.z, -lim, lim);
 
   // During the knight's warning: pressing on toward him (northward) provokes
   // the attack; retreating (or stepping aside) makes him stand down.
-  if (encounter.state === 'warn') {
+  if (area === 'forest' && encounter.state === 'warn') {
     if (hit.z < pos.z - 0.4) {
       triggerAttack();
       return;
@@ -392,7 +446,7 @@ function moveTo(clientX, clientY) {
   }
 
   // Route around obstacles instead of walking straight through them.
-  const route = navGrid.findPath({ x: pos.x, z: pos.z }, { x: hit.x, z: hit.z });
+  const route = activeNav.findPath({ x: pos.x, z: pos.z }, { x: hit.x, z: hit.z });
   if (!route || route.length === 0) return;
 
   path = route;
@@ -428,14 +482,103 @@ const clock = new THREE.Clock();
 const pos = character.group.position; // y is driven by the bob in Character
 let baseY = 0; // ground height under the character (rises on the bridge)
 
+// ---------------------------------------------------------------------------
+// Area/scene manager: the forest and the cave are separate boards. The camera
+// and player model are shared and moved between the two scenes.
+// ---------------------------------------------------------------------------
+let area = 'forest';
+let activeScene = scene;
+let activeNav = navGrid;
+let inCombat = false;
+let bearDefeated = false;
+
+function enterCave() {
+  area = 'cave';
+  activeScene = caveScene;
+  activeNav = caveNav;
+  scene.remove(character.group);
+  scene.remove(marker);
+  caveScene.add(character.group);
+  caveScene.add(marker);
+  pos.set(cave.entry.x, 0, cave.entry.z);
+  character.group.rotation.y = Math.PI; // face into the cave (-Z)
+  moving = false;
+  path = null;
+  marker.visible = false;
+  inventory.notify('You step into the darkness…');
+}
+
+function exitCave() {
+  area = 'forest';
+  activeScene = scene;
+  activeNav = navGrid;
+  caveScene.remove(character.group);
+  caveScene.remove(marker);
+  scene.add(character.group);
+  scene.add(marker);
+  pos.set(caveMouth.trigger.x, 0, caveMouth.trigger.z + 2.5);
+  character.group.rotation.y = 0;
+  moving = false;
+  path = null;
+  marker.visible = false;
+}
+
+function onCombatEnd({ result }) {
+  inCombat = false;
+  if (result === 'victory') {
+    bearDefeated = true;
+    bear.die?.();
+    inventory.addItem(makeItem('coins', { qty: 80 }));
+    inventory.addItem(makeItem('potion', { qty: 1 }));
+    inventory.notify('The bear is slain! You loot 80 gold and a potion.');
+  } else if (result === 'defeat') {
+    killPlayer('bear');
+  } else if (result === 'flee') {
+    pos.set(cave.entry.x, 0, cave.entry.z); // scramble back to the entrance
+    moving = false;
+    path = null;
+    inventory.notify('You escaped the bear — for now.');
+  }
+}
+
+function startBearCombat() {
+  inCombat = true;
+  moving = false;
+  path = null;
+  marker.visible = false;
+  bear.wake();
+  combat.start(
+    {
+      name: 'Cave Bear',
+      icon: '🐻',
+      health: 120,
+      damage: 22,
+      intro: 'The sleeping bear jolts awake with a thunderous roar!',
+      onAttack: () => bear.attackAnim(),
+    },
+    { onEnd: onCombatEnd }
+  );
+}
+
 // Optional debug hook (only with ?debug in the URL) for driving the player to
 // world coordinates — used by automated tests. No effect otherwise.
 if (new URLSearchParams(location.search).has('debug')) {
   window.__dbg = {
     pos,
+    area: () => area,
     inCabin: () => cabin.isInside(pos.x, pos.z),
+    inCombat: () => inCombat,
+    bearDefeated: () => bearDefeated,
+    health: () => inventory.getHealth(),
+    enterCave,
+    combatActive: () => combat.active,
+    arm: () => {
+      inventory.autoEquip(makeItem('greatsword', { rarity: 'legendary', itemLevel: 9, seed: 3 }));
+      inventory.autoEquip(makeItem('ironplate', { rarity: 'epic', itemLevel: 8, seed: 4 }));
+      inventory.resetHealth();
+    },
     go: (x, z) => {
-      const route = navGrid.findPath({ x: pos.x, z: pos.z }, { x, z });
+      const route = activeNav.findPath({ x: pos.x, z: pos.z }, { x, z });
       if (route && route.length) {
         path = route;
         pathIndex = 0;
@@ -492,58 +635,84 @@ function tick() {
 
   if (!playerDead) {
     character.update(delta, moving); // sets pos.y to the bob offset
-    // Ease the character onto/off the bridge deck.
-    baseY += (surfaceHeight(pos.x, pos.z) - baseY) * Math.min(1, delta * 7);
-    pos.y += baseY;
+    // Ease the character onto/off the bridge deck (forest only).
+    if (area === 'forest') {
+      baseY += (surfaceHeight(pos.x, pos.z) - baseY) * Math.min(1, delta * 7);
+      pos.y += baseY;
+    }
   } else {
     // Slain: topple over and, after a beat, reveal the death screen.
     deathTimer += delta;
     character.group.rotation.z += (Math.PI / 2 - character.group.rotation.z) * Math.min(1, delta * 4);
-    pos.y = baseY + 0.1;
+    pos.y = 0.1;
     if (deathTimer > 1.1) deathOverlay.classList.add('show');
   }
 
-  // Animate the water and bring the forest to life.
-  stream.animate(elapsed);
-  for (const critter of wildlife.critters) critter.update(delta, elapsed, pos);
-  fisherman.update(delta, elapsed);
-  chest.update(delta);
-  cabin.update(delta, cabin.isInside(pos.x, pos.z)); // fade near walls + roof when inside
-  updateEncounter(delta, elapsed);
+  if (area === 'forest') {
+    // Animate the water and bring the forest to life.
+    stream.animate(elapsed);
+    for (const critter of wildlife.critters) critter.update(delta, elapsed, pos);
+    fisherman.update(delta, elapsed);
+    chest.update(delta);
+    cabin.update(delta, cabin.isInside(pos.x, pos.z)); // fade near walls + roof when inside
+    updateEncounter(delta, elapsed);
+    sun.position.set(pos.x + 18, 34, pos.z + 12);
+    sun.target.position.set(pos.x, 0, pos.z);
 
-  if (!playerDead) {
-    // Conversation with the fisherman. Approaching opens the branching dialogue;
-    // ending it (via "Farewell") sets a dismiss flag so it doesn't immediately
-    // reopen — that flag clears once the player walks away.
-    const distToNpc = Math.hypot(pos.x - fisherman.x, pos.z - fisherman.z);
-    if (talking && !dialogue.active) {
-      // Player closed the dialogue by choosing an end option.
-      talking = false;
-      npcDismissed = true;
-    }
-    if (distToNpc < 3.4) {
-      if (!talking && !npcDismissed) {
-        talking = true;
-        dialogue.open('Old Angler', FISHERMAN_TREE);
-      }
-    } else {
-      npcDismissed = false;
-      if (talking) {
+    if (!playerDead) {
+      // Fisherman conversation (approach opens the branching dialogue).
+      const distToNpc = Math.hypot(pos.x - fisherman.x, pos.z - fisherman.z);
+      if (talking && !dialogue.active) {
         talking = false;
-        dialogue.close();
+        npcDismissed = true;
       }
-    }
+      if (distToNpc < 3.4) {
+        if (!talking && !npcDismissed) {
+          talking = true;
+          dialogue.open('Old Angler', FISHERMAN_TREE);
+        }
+      } else {
+        npcDismissed = false;
+        if (talking) {
+          talking = false;
+          dialogue.close();
+        }
+      }
 
-    // Chest: open (and show the loot interface) on approach, close on leaving.
-    const distToChest = Math.hypot(pos.x - chest.x, pos.z - chest.z);
-    if (distToChest < 2.8) {
-      if (!inventory.chestVisible) {
-        chest.open();
-        inventory.openChest(chestContents);
+      // Chest loot on approach.
+      const distToChest = Math.hypot(pos.x - chest.x, pos.z - chest.z);
+      if (distToChest < 2.8) {
+        if (!inventory.chestVisible) {
+          chest.open();
+          inventory.openChest(chestContents);
+        }
+      } else if (inventory.chestVisible) {
+        chest.close();
+        inventory.closeChest();
       }
-    } else if (inventory.chestVisible) {
-      chest.close();
-      inventory.closeChest();
+
+      // Pick up food lying in the cabin.
+      for (const p of pickups) {
+        if (p.taken) continue;
+        if (Math.hypot(pos.x - p.x, pos.z - p.z) < 1.4) {
+          if (inventory.addItem(p.item).ok) {
+            scene.remove(p.mesh);
+            p.taken = true;
+            inventory.notify(`Picked up ${p.item.name}`);
+          }
+        }
+      }
+
+      // Enter the cave.
+      if (Math.hypot(pos.x - caveMouth.trigger.x, pos.z - caveMouth.trigger.z) < 2) enterCave();
+    }
+  } else {
+    // Cave board.
+    bear.update(delta, elapsed);
+    caveLight.position.set(pos.x, 8, pos.z);
+    if (!playerDead && !inCombat) {
+      if (!bearDefeated && Math.hypot(pos.x - bear.x, pos.z - bear.z) < 3.6) startBearCombat();
+      else if (pos.z > cave.exitZ) exitCave();
     }
   }
 
@@ -551,16 +720,12 @@ function tick() {
   camera.position.set(pos.x + camOffset.x, camOffset.y, pos.z + camOffset.z);
   camera.lookAt(pos.x, 1, pos.z);
 
-  // Keep the sun shadow frustum centred on the action.
-  sun.position.set(pos.x + 18, 34, pos.z + 12);
-  sun.target.position.set(pos.x, 0, pos.z);
-
   // Pulse the target marker.
   if (marker.visible) {
     marker.material.opacity = 0.55 + Math.sin(clock.elapsedTime * 6) * 0.35;
   }
 
-  renderer.render(scene, camera);
+  renderer.render(activeScene, camera);
   requestAnimationFrame(tick);
 }
 

@@ -516,6 +516,98 @@ body.looting #char-panel.show {
   transform: translate(-50%, 0);
 }
 
+/* ---- Turn-based combat -------------------------------------------------- */
+#combat {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  transform: translate(-50%, 12px);
+  width: min(560px, 94vw);
+  padding: 14px 16px;
+  background: rgba(10, 8, 10, 0.92);
+  border: 1px solid rgba(255, 120, 120, 0.35);
+  border-radius: 12px;
+  color: var(--ink);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  z-index: 24;
+}
+#combat.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  pointer-events: auto;
+}
+.cbt-enemy-name {
+  font-weight: 700;
+  color: #ff9d9d;
+  margin-bottom: 5px;
+}
+.bar.big {
+  height: 12px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.bar-fill.enemy {
+  height: 100%;
+  background: linear-gradient(90deg, #7a1f1f, #d0352b);
+  transition: width 0.3s ease;
+}
+.cbt-log {
+  height: 128px;
+  overflow-y: auto;
+  margin: 10px 0;
+  padding: 8px 10px;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.cbt-line.good { color: #7fe08a; }
+.cbt-line.bad { color: #ff8b8b; }
+.cbt-line.warn { color: #ffd166; }
+.cbt-line.info { opacity: 0.8; }
+.cbt-player {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  margin-bottom: 10px;
+}
+.cbt-player .bar {
+  flex: 1;
+}
+.cbt-player .bar-fill.hp {
+  transition: width 0.3s ease;
+}
+.cbt-actions {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.cbt-actions button {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  padding: 9px 6px;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.cbt-actions button:hover:not(:disabled) {
+  background: rgba(255, 224, 102, 0.16);
+  border-color: rgba(255, 224, 102, 0.5);
+}
+.cbt-actions button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 #knight-banner {
   position: fixed;
   top: 14%;
