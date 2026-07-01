@@ -8,6 +8,7 @@ import { Chest } from './chest.js';
 import { Knight } from './knight.js';
 import { createDialogue } from './dialogue.js';
 import { createInventory } from './inventory.js';
+import { defaultChestLoot } from './items.js';
 import { NavGrid } from './navigation.js';
 
 const canvas = document.getElementById('scene');
@@ -135,21 +136,17 @@ const chest = new Chest();
 chest.setPosition(CHEST_POS.x, CHEST_POS.z, 0.6);
 scene.add(chest.group);
 
-const inventory = createInventory();
+// Player model (created before the inventory so equipping can update its gear).
+const character = new Character();
+scene.add(character.group);
 
-// Contents of the chest (taken items are removed from this array).
-const chestContents = [
-  { id: 'coins', name: 'Gold Coins', type: 'coin', icon: '🪙', qty: 25 },
-  { id: 'sword', name: 'Iron Sword', type: 'weapon', icon: '⚔️', qty: 1 },
-  { id: 'bow', name: 'Short Bow', type: 'weapon', icon: '🏹', qty: 1 },
-  { id: 'apple', name: 'Red Apple', type: 'food', icon: '🍎', qty: 3 },
-  { id: 'bread', name: 'Loaf of Bread', type: 'food', icon: '🍞', qty: 2 },
-  { id: 'cloak', name: 'Wool Cloak', type: 'clothing', icon: '🧥', qty: 1 },
-  { id: 'boots', name: 'Leather Boots', type: 'clothing', icon: '🥾', qty: 1 },
-  { id: 'hat', name: 'Feathered Hat', type: 'clothing', icon: '🎩', qty: 1 },
-];
+// Inventory / equipment / character sheet; equipping updates the 3D model.
+const inventory = createInventory({ onEquipChange: (eq) => character.setEquipment(eq) });
 
-// Toggle the inventory with the "I" key.
+// The chest's loot (generated items span slots and rarities).
+const chestContents = defaultChestLoot();
+
+// Toggle the character sheet with the "I" key.
 window.addEventListener('keydown', (e) => {
   if (e.key === 'i' || e.key === 'I') inventory.toggleInventory();
 });
@@ -193,9 +190,6 @@ const FISHERMAN_TREE = {
 };
 let talking = false;
 let npcDismissed = false;
-
-const character = new Character();
-scene.add(character.group);
 
 // Ground reticle that marks the current move target.
 const marker = new THREE.Mesh(

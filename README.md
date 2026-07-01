@@ -32,10 +32,19 @@ and lets you move around with classic click-to-move controls.
   animated rod, line and bobber; walk up to him and he strikes up a conversation
   with clickable answer/question options (a small dialogue tree). He even points
   you toward the chest.
-- 🧰 **Chest, loot & inventory** — an animated treasure chest opens as you
-  approach; a loot interface lets you take items (or "Take All") into a player
-  inventory you can open any time (🎒 button or the **I** key). Items include
-  coins, weapons, food and clothing.
+- 🧰 **Chest & loot** — an animated treasure chest opens as you approach; a loot
+  interface lets you take items (or "Take All") into your bag.
+- 🎒 **RPG inventory, equipment & stats** — a bag with **limited slots** and a
+  **weight/carry-capacity** limit (scales with Strength); an equipment paperdoll
+  (**helmet, chestplate, gloves, belt, boots, weapon, shield**) whose gear
+  **appears on the 3D character**; a character sheet with attributes
+  (STR/DEX/VIT/INT), Armor, Damage, Health and Gold; hover **tooltips** on every
+  item. Open it with the 🎒 button or the **I** key.
+- 🗂️ **Item taxonomy** — items carry a **rarity** (Common → Uncommon → Rare →
+  Epic → Legendary), **item level**, weight, value, protection/damage, attribute
+  bonuses and **magical powers** (affixes like *Flaming* or *of the Bear*). Higher
+  rarity scales stats and adds more magic. Consumables (food/potions) heal, coins
+  become gold.
 - 🐕 **Companion dog** — a loyal dog follows the player (trotting to catch up
   when it falls behind) and otherwise roams and explores nearby, tail wagging.
   It uses the same navigation grid, so it rounds obstacles and crosses the
@@ -101,7 +110,8 @@ src/wildlife.js    # deer, squirrels, birds and the companion dog
 src/npc.js         # fisherman NPC (rod, line, bobber, idle animation)
 src/dialogue.js    # branching dialogue panel (clickable options)
 src/chest.js       # treasure chest with an animated hinged lid
-src/inventory.js   # player inventory + chest loot interface
+src/items.js       # item taxonomy: rarity, slots, affixes, base items, makeItem
+src/inventory.js   # inventory, equipment paperdoll, character stats + loot UI
 src/knight.js      # mounted knight (horse, lance, shield) for the encounter
 src/navigation.js  # A* grid pathfinding (obstacle + stream avoidance)
 src/style.css      # HUD + layout
