@@ -285,6 +285,237 @@ body {
   border-color: rgba(255, 224, 102, 0.5);
 }
 
+/* ---- Character sheet / equipment / bag --------------------------------- */
+#char-panel {
+  width: min(880px, 95vw);
+}
+#loot-panel {
+  width: min(340px, 90vw);
+}
+
+/* Side-by-side layout while looting a chest. */
+#loot-panel {
+  left: 3%;
+  transform: translate(0, -46%);
+}
+#loot-panel.show {
+  transform: translate(0, -50%);
+}
+body.looting #char-panel {
+  left: auto;
+  right: 3%;
+  transform: translate(0, -46%);
+}
+body.looting #char-panel.show {
+  transform: translate(0, -50%);
+}
+
+.char-cols {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+.paperdoll {
+  width: 150px;
+  flex: none;
+}
+.char-stats {
+  width: 210px;
+  flex: none;
+}
+.bag-col {
+  flex: 1;
+  min-width: 0;
+}
+
+.paperdoll-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #ffe066;
+  margin-bottom: 8px;
+  letter-spacing: 0.3px;
+}
+
+.equip-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 7px;
+}
+.equip-cell {
+  width: 46px;
+  height: 46px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.equip-label {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.slot-icon.empty {
+  opacity: 0.28;
+  font-size: 22px;
+}
+
+.stat-line,
+.stat-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  padding: 3px 0;
+}
+.stat-line span {
+  opacity: 0.85;
+}
+.stat-line b em {
+  color: #4fd14f;
+  font-style: normal;
+  font-weight: 700;
+}
+.stat-line.over b,
+.bag-weight.over,
+#hud-stats .over,
+.stat-line.over {
+  color: #ff6b6b;
+}
+.stat-div {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.12);
+  margin: 6px 0;
+}
+.stat-bar .bar {
+  flex: 1;
+  height: 8px;
+  margin: 0 8px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 5px;
+  overflow: hidden;
+}
+.bar-fill.hp {
+  height: 100%;
+  background: linear-gradient(90deg, #c0392b, #e74c3c);
+}
+
+.bag-head {
+  font-size: 13px;
+  font-weight: 700;
+  color: #ffe066;
+  margin-bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.bag-weight {
+  font-size: 12px;
+  font-weight: 400;
+  opacity: 0.75;
+}
+.bag-slots {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  min-height: auto;
+}
+.chest-slots {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  min-height: auto;
+}
+#char-panel .slot,
+#loot-panel .slot {
+  padding: 6px 4px;
+  aspect-ratio: 1 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#char-panel .slot-icon,
+#loot-panel .slot-icon {
+  font-size: 25px;
+}
+
+#hud-stats {
+  position: fixed;
+  right: 16px;
+  top: 54px;
+  z-index: 14;
+  display: flex;
+  gap: 12px;
+  padding: 6px 12px;
+  background: rgba(12, 22, 16, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 9px;
+  font-size: 13px;
+  color: var(--ink);
+  pointer-events: none;
+  user-select: none;
+}
+#hud-stats .hud-hp {
+  color: #ff8f8f;
+}
+
+#item-tooltip {
+  position: fixed;
+  z-index: 50;
+  max-width: 260px;
+  padding: 10px 12px;
+  background: rgba(6, 12, 9, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 9px;
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.6);
+  font-size: 12.5px;
+  line-height: 1.5;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.1s ease;
+}
+#item-tooltip.show {
+  opacity: 1;
+}
+.tip-name {
+  font-size: 14px;
+  font-weight: 700;
+}
+.tip-sub {
+  opacity: 0.7;
+  margin-bottom: 5px;
+}
+.tip-attr {
+  color: #4fd14f;
+}
+.tip-magic {
+  color: #b45cff;
+  margin-top: 3px;
+}
+.tip-foot {
+  opacity: 0.6;
+  margin-top: 5px;
+  font-size: 11.5px;
+}
+
+#toast {
+  position: fixed;
+  left: 50%;
+  bottom: 96px;
+  transform: translate(-50%, 8px);
+  padding: 9px 16px;
+  background: rgba(20, 30, 24, 0.92);
+  border: 1px solid rgba(255, 224, 102, 0.4);
+  border-radius: 9px;
+  color: var(--ink);
+  font-size: 13px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  z-index: 22;
+}
+#toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
 #knight-banner {
   position: fixed;
   top: 14%;
