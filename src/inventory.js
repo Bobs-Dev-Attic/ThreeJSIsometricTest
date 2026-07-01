@@ -376,6 +376,34 @@ export function createInventory({ onEquipChange } = {}) {
     charPanel.classList.toggle('show');
   }
 
+  // ---- combat / health API -----------------------------------------------
+  function damagePlayer(amount) {
+    health = Math.max(0, health - Math.max(0, amount));
+    renderAll();
+    return health;
+  }
+  function healPlayer(amount) {
+    const s = computeStats();
+    const before = health;
+    health = Math.min(s.maxHealth, health + amount);
+    renderAll();
+    return Math.round(health - before);
+  }
+  function useBestFood() {
+    const idx = bag.findIndex((it) => it && it.use?.health);
+    if (idx < 0) return null;
+    const item = bag[idx];
+    const healed = healPlayer(item.use.health);
+    item.qty -= 1;
+    if (item.qty <= 0) bag[idx] = null;
+    renderAll();
+    return { name: item.name, healed };
+  }
+  function resetHealth() {
+    health = computeStats().maxHealth;
+    renderAll();
+  }
+
   onEquipChange?.(equipment);
   renderAll();
 
@@ -386,6 +414,27 @@ export function createInventory({ onEquipChange } = {}) {
     addItem,
     get chestVisible() {
       return lootPanel.classList.contains('show');
+    },
+    // combat / status
+    getStats: () => computeStats(),
+    getHealth: () => health,
+    getMaxHealth: () => computeStats().maxHealth,
+    getDamage: () => computeStats().damage,
+    getArmor: () => computeStats().armor,
+    hasWeapon: () => !!(equipment.mainHand && equipment.mainHand.category === 'weapon'),
+    weaponName: () => equipment.mainHand?.name || null,
+    hasFood: () => bag.some((it) => it && it.use?.health),
+    isDead: () => health <= 0,
+    damagePlayer,
+    healPlayer,
+    useBestFood,
+    resetHealth,
+    notify: (m) => toast(m),
+    autoEquip: (item) => {
+      if (!item?.slot) return;
+      equipment[item.slot] = item;
+      onEquipChange?.(equipment);
+      renderAll();
     },
   };
 }

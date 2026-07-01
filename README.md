@@ -52,7 +52,17 @@ and lets you move around with classic click-to-move controls.
 - 🏚️ **Cabin you can enter** — a log cabin in the woods with a doorway (the walls
   block you; you can only walk in through the door). While you're inside, the
   **roof and the two camera-facing walls fade away** so you can see the interior
-  (bed, table, barrel) and your character; they fade back as you leave.
+  (bed, table, barrel) and your character; they fade back as you leave. There's
+  **food inside to pick up**, and eating it (from the bag or in combat) restores
+  health.
+- 🕳️ **Cave (its own board)** — a cave mouth in the woods leads to a separate
+  cave level with its own layout and lighting; the camera-facing walls stay
+  see-through so you can always see your character inside. At the far end a
+  **bear is awoken and attacks**.
+- ⚔️ **Turn-based combat** — face the bear in a turn-based fight with a
+  **scrolling action log** and choices (**Attack / Defend / Eat / Flee**).
+  Damage, armour and health come from your gear, so **arm yourself with a sword**
+  (and armour) first — going in bare-handed is a quick way to die.
 - 🐎 **Scripted encounter** — cross the bridge and a mounted knight rides up,
   blocks the way and warns "Halt or I'll attack!". Press on toward him and he
   couches his lance, charges and runs you through — a death screen with a
@@ -118,6 +128,9 @@ src/items.js       # item taxonomy: rarity, slots, affixes, base items, makeItem
 src/inventory.js   # inventory, equipment paperdoll, character stats + loot UI
 src/knight.js      # mounted knight (horse, lance, shield) for the encounter
 src/cabin.js       # enterable log cabin with fade-away near walls + roof
+src/cave.js        # cave board + forest cave mouth (see-through near walls)
+src/bear.js        # the cave bear (sleeps, wakes, attacks, dies)
+src/combat.js      # turn-based combat UI with a scrolling action log
 src/navigation.js  # A* grid pathfinding (obstacle + stream avoidance)
 src/style.css      # HUD + layout
 vite.config.js     # Vite build config (relative base for static hosting)

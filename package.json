@@ -1,7 +1,7 @@
 {
   "name": "threejs-isometric-rpg",
   "private": true,
-  "version": "0.5.0",
+  "version": "0.6.0",
   "type": "module",
   "description": "An isometric RPG-style game MVP built with Three.js, deployable on Vercel.",
   "scripts": {
