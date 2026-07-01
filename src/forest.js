@@ -20,7 +20,7 @@ function mulberry32(seed) {
  *
  * @returns {{ group: THREE.Group, halfSize: number, obstacles: Array<{x:number,z:number,radius:number}> }}
  */
-export function createForest({ halfSize = 40, treeCount = 110, seed = 1337, stream = null } = {}) {
+export function createForest({ halfSize = 40, treeCount = 110, seed = 1337, stream = null, keepClear = [] } = {}) {
   const rand = mulberry32(seed);
   const group = new THREE.Group();
   const obstacles = [];
@@ -65,12 +65,16 @@ export function createForest({ halfSize = 40, treeCount = 110, seed = 1337, stre
     return false;
   };
 
+  // Rectangles (e.g. buildings) that must stay clear of scenery.
+  const inKeepClear = (x, z) =>
+    keepClear.some((r) => x > r.xmin && x < r.xmax && z > r.zmin && z < r.zmax);
+
   const placeAway = () => {
     let x, z;
     do {
       x = (rand() * 2 - 1) * halfSize;
       z = (rand() * 2 - 1) * halfSize;
-    } while (Math.hypot(x, z) < clearRadius || inStream(x, z));
+    } while (Math.hypot(x, z) < clearRadius || inStream(x, z) || inKeepClear(x, z));
     return [x, z];
   };
 

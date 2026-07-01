@@ -49,6 +49,10 @@ and lets you move around with classic click-to-move controls.
   when it falls behind) and otherwise roams and explores nearby, tail wagging.
   It uses the same navigation grid, so it rounds obstacles and crosses the
   bridge to stay with you.
+- 🏚️ **Cabin you can enter** — a log cabin in the woods with a doorway (the walls
+  block you; you can only walk in through the door). While you're inside, the
+  **roof and the two camera-facing walls fade away** so you can see the interior
+  (bed, table, barrel) and your character; they fade back as you leave.
 - 🐎 **Scripted encounter** — cross the bridge and a mounted knight rides up,
   blocks the way and warns "Halt or I'll attack!". Press on toward him and he
   couches his lance, charges and runs you through — a death screen with a
@@ -113,6 +117,7 @@ src/chest.js       # treasure chest with an animated hinged lid
 src/items.js       # item taxonomy: rarity, slots, affixes, base items, makeItem
 src/inventory.js   # inventory, equipment paperdoll, character stats + loot UI
 src/knight.js      # mounted knight (horse, lance, shield) for the encounter
+src/cabin.js       # enterable log cabin with fade-away near walls + roof
 src/navigation.js  # A* grid pathfinding (obstacle + stream avoidance)
 src/style.css      # HUD + layout
 vite.config.js     # Vite build config (relative base for static hosting)

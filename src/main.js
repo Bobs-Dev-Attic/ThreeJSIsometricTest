@@ -5,6 +5,7 @@ import { createStream } from './stream.js';
 import { createWildlife, Dog } from './wildlife.js';
 import { Fisherman } from './npc.js';
 import { Chest } from './chest.js';
+import { createCabin } from './cabin.js';
 import { Knight } from './knight.js';
 import { createDialogue } from './dialogue.js';
 import { createInventory } from './inventory.js';
@@ -86,7 +87,11 @@ const stream = createStream({ halfSize: HALF, zCenter: -6, halfWidth: 3, bridgeX
 scene.add(stream.group);
 const streamCfg = stream.config;
 
-// Forest, kept clear of the stream and the bridge approaches.
+// A cabin in the woods the player can enter (near walls + roof fade inside).
+const cabin = createCabin({ cx: 14, cz: 5, hw: 3, hd: 2.6 });
+scene.add(cabin.group);
+
+// Forest, kept clear of the stream, the bridge approaches and the cabin.
 const { group: forest, halfSize, obstacles } = createForest({
   halfSize: HALF,
   stream: {
@@ -95,8 +100,12 @@ const { group: forest, halfSize, obstacles } = createForest({
     bridgeXCenter: streamCfg.bridgeXCenter,
     bridgeHalfWidth: streamCfg.bridgeHalfWidth,
   },
+  keepClear: [cabin.footprint, cabin.doorClear],
 });
 scene.add(forest);
+
+// Cabin walls block the player (the doorway is left open in the nav grid).
+obstacles.push(...cabin.wallObstacles);
 
 // Fisherman NPC, standing on the bridge near the railing. Register him as an
 // obstacle so the player routes around him (and can still cross the bridge).
@@ -419,6 +428,26 @@ const clock = new THREE.Clock();
 const pos = character.group.position; // y is driven by the bob in Character
 let baseY = 0; // ground height under the character (rises on the bridge)
 
+// Optional debug hook (only with ?debug in the URL) for driving the player to
+// world coordinates — used by automated tests. No effect otherwise.
+if (new URLSearchParams(location.search).has('debug')) {
+  window.__dbg = {
+    pos,
+    inCabin: () => cabin.isInside(pos.x, pos.z),
+    go: (x, z) => {
+      const route = navGrid.findPath({ x: pos.x, z: pos.z }, { x, z });
+      if (route && route.length) {
+        path = route;
+        pathIndex = 0;
+        moving = true;
+        const e = route[route.length - 1];
+        marker.position.set(e.x, 0.05, e.z);
+        marker.visible = true;
+      }
+    },
+  };
+}
+
 // Height of the walkable surface at (x,z): the bridge deck while crossing the
 // stream, otherwise the ground.
 function surfaceHeight(x, z) {
@@ -479,6 +508,7 @@ function tick() {
   for (const critter of wildlife.critters) critter.update(delta, elapsed, pos);
   fisherman.update(delta, elapsed);
   chest.update(delta);
+  cabin.update(delta, cabin.isInside(pos.x, pos.z)); // fade near walls + roof when inside
   updateEncounter(delta, elapsed);
 
   if (!playerDead) {
